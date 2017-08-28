@@ -7,15 +7,18 @@ use std::process;
 use std::str;
 
 fn list() -> Result<()> {
-    for device_res in Device::devices(true) {
+    for (dev_i, device_res) in Device::devices(true).enumerate() {
         let device = device_res?;
 
-        println!("Device {:?}: {:?}", str::from_utf8(device.path()), str::from_utf8(device.model()));
+        println!("Device {}", dev_i);
+        println!("  Model: {:?}", str::from_utf8(device.model()));
+        println!("  Path: {:?}", str::from_utf8(device.path()));
+        println!("  Size: {} MB", device.length() * device.sector_size() / 1000000);
 
         let disk = Disk::new(device)?;
 
-        for (i, part) in disk.parts().enumerate() {
-            println!("  Part {}", i);
+        for (part_i, part) in disk.parts().enumerate() {
+            println!("  Part {}", part_i);
             if let Some(name) = part.name() {
                 println!("    Name: {:?}", str::from_utf8(name));
             }
