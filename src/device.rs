@@ -102,10 +102,10 @@ impl Device {
 
     pub fn read_only(&self) -> bool {
         unsafe {
-            (*self.0).read_only as bool
+            (*self.0).read_only != 0
         }
     }
-    
+
     //TODO: add more params
 }
 
