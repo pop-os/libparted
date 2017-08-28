@@ -6,6 +6,7 @@ use libparted_sys::{
     ped_partition_is_busy,
     ped_partition_get_name,
     ped_partition_get_path,
+    ped_partition_type_get_name,
 };
 
 pub struct Partition(*mut PedPartition);
@@ -44,6 +45,12 @@ impl Partition {
             }
         } else {
             None
+        }
+    }
+
+    pub fn type_name(&self) -> &[u8] {
+        unsafe {
+            CStr::from_ptr(ped_partition_type_get_name((*self.0).type_)).to_bytes()
         }
     }
 }

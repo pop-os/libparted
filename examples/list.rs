@@ -19,6 +19,7 @@ fn list() -> Result<()> {
 
         for (part_i, part) in disk.parts().enumerate() {
             println!("  Part {}", part_i);
+            println!("    Type: {:?}", str::from_utf8(part.type_name()));
             if let Some(name) = part.name() {
                 println!("    Name: {:?}", str::from_utf8(name));
             }
