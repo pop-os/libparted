@@ -26,6 +26,8 @@ use libparted_sys::{
     ped_device_get_optimum_alignment
 };
 
+pub use libparted_sys::PedDeviceType as DeviceType;
+
 use super::{cvt, Alignment, Constraint};
 
 pub struct Device(*mut PedDevice);
@@ -33,6 +35,35 @@ pub struct Device(*mut PedDevice);
 pub struct DeviceIter(*mut PedDevice);
 
 pub struct DeviceExternalAccess<'a>(&'a mut Device);
+
+pub struct Geometry {
+    pub cylinders: i32,
+    pub heads: i32,
+    pub sectors: i32
+}
+
+macro_rules! get_bool {
+    ($field:tt) => {
+        pub fn $field(&self) -> bool {
+            unsafe { *self.0 }.$field != 0
+        }
+    }
+}
+
+macro_rules! get_geometry {
+    ($kind:tt) => {
+        pub fn $kind(&self) -> Geometry {
+            unsafe {
+                let raw = (*self.0).$kind;
+                Geometry {
+                    cylinders: raw.cylinders as i32,
+                    heads: raw.heads as i32,
+                    sectors: raw.sectors as i32
+                }
+            }
+        }
+    }
+}
 
 impl Device {
     pub fn devices(probe: bool) -> DeviceIter {
@@ -168,7 +199,11 @@ impl Device {
         }
     }
 
-    // TODO pub fn type
+    pub fn type_(&self) -> DeviceType {
+        unsafe {
+            (*self.0).type_ as DeviceType
+        }
+    }
 
     pub fn sector_size(&self) -> u64 {
         unsafe {
@@ -194,13 +229,26 @@ impl Device {
         }
     }
 
-    pub fn read_only(&self) -> bool {
+    get_bool!(read_only);
+    get_bool!(external_mode);
+    get_bool!(dirty);
+    get_bool!(boot_dirty);
+    get_geometry!(hw_geom);
+    get_geometry!(bios_geom);
+
+    pub fn host(&self) -> i16 {
         unsafe {
-            (*self.0).read_only != 0
+            (*self.0).host as i16
         }
     }
 
-    //TODO: add more params
+    pub fn did(&self) -> i16 {
+        unsafe {
+            (*self.0).did as i16
+        }
+    }
+
+    // TODO: arch_specific
 }
 
 impl Iterator for DeviceIter {

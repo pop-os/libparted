@@ -4,7 +4,7 @@ use std::io;
 
 pub use self::alignment::Alignment;
 pub use self::constraint::Constraint;
-pub use self::device::Device;
+pub use self::device::{Device, Geometry};
 pub use self::disk::Disk;
 pub use self::partition::Partition;
 

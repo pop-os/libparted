@@ -5,3 +5,6 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
 [dependencies]
 "libparted-sys" = { "git" = "https://github.com/system76/libparted-sys.git" }
+
+[dev-dependencies]
+libc = "*"
