@@ -2,10 +2,14 @@ extern crate libparted_sys;
 
 use std::io;
 
+pub use self::alignment::Alignment;
+pub use self::constraint::Constraint;
 pub use self::device::Device;
 pub use self::disk::Disk;
 pub use self::partition::Partition;
 
+mod alignment;
+mod constraint;
 mod device;
 mod disk;
 mod partition;
