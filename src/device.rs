@@ -17,10 +17,15 @@ use libparted_sys::{
     ped_device_sync,
     ped_device_sync_fast,
     ped_device_write,
-    ped_device_is_busy
+    ped_device_is_busy,
+    ped_device_get_constraint,
+    ped_device_get_minimal_aligned_constraint,
+    ped_device_get_minimum_alignment,
+    ped_device_get_optimal_aligned_constraint,
+    ped_device_get_optimum_alignment
 };
 
-use super::cvt;
+use super::{cvt, Alignment, Constraint};
 
 pub struct Device(*mut PedDevice);
 
@@ -113,6 +118,26 @@ impl Device {
         // Then attempt to write the data to the device.
         cvt(unsafe { ped_device_write(self.0, sector_ptr, start_sector, sectors) })?;
         Ok(())
+    }
+
+    pub fn get_constraint(&self) -> Constraint {
+        unsafe { Constraint(ped_device_get_constraint(self.0)) }
+    }
+
+    pub fn get_minimal_aligned_constraint(&self) -> Constraint {
+        unsafe { Constraint(ped_device_get_minimal_aligned_constraint(self.0)) }
+    }
+
+    pub fn get_optimal_aligned_constraint(&self) -> Constraint {
+        unsafe { Constraint(ped_device_get_optimal_aligned_constraint(self.0)) }
+    }
+
+    pub fn get_minimum_alignment(&self) -> Alignment {
+        unsafe { Alignment(ped_device_get_minimum_alignment(self.0)) }
+    }
+
+    pub fn get_optimal_alignment(&self) -> Alignment {
+        unsafe { Alignment(ped_device_get_optimum_alignment(self.0)) }
     }
 
     pub fn model(&self) -> &[u8] {
