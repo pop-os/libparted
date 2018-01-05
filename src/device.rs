@@ -1,5 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::io::{Error, ErrorKind, Result};
+use std::marker::PhantomData;
 use std::os::unix::ffi::OsStrExt;
 use std::os::raw::c_void;
 use std::path::Path;
@@ -120,24 +121,39 @@ impl Device {
         Ok(())
     }
 
-    pub fn get_constraint(&self) -> Constraint {
-        unsafe { Constraint(ped_device_get_constraint(self.0)) }
+    pub fn get_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_constraint(self.0) },
+            phantom: PhantomData
+        }
     }
 
-    pub fn get_minimal_aligned_constraint(&self) -> Constraint {
-        unsafe { Constraint(ped_device_get_minimal_aligned_constraint(self.0)) }
+    pub fn get_minimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_minimal_aligned_constraint(self.0) },
+            phantom: PhantomData
+        }
     }
 
-    pub fn get_optimal_aligned_constraint(&self) -> Constraint {
-        unsafe { Constraint(ped_device_get_optimal_aligned_constraint(self.0)) }
+    pub fn get_optimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_optimal_aligned_constraint(self.0) },
+            phantom: PhantomData
+        }
     }
 
-    pub fn get_minimum_alignment(&self) -> Alignment {
-        unsafe { Alignment(ped_device_get_minimum_alignment(self.0)) }
+    pub fn get_minimum_alignment<'a>(&'a self) -> Alignment<'a> {
+        Alignment {
+            alignment: unsafe { ped_device_get_minimum_alignment(self.0) },
+            phantom: PhantomData
+        }
     }
 
-    pub fn get_optimal_alignment(&self) -> Alignment {
-        unsafe { Alignment(ped_device_get_optimum_alignment(self.0)) }
+    pub fn get_optimal_alignment<'a>(&'a self) -> Alignment<'a> {
+        Alignment {
+            alignment: unsafe { ped_device_get_optimum_alignment(self.0) },
+            phantom: PhantomData
+        }
     }
 
     pub fn model(&self) -> &[u8] {
