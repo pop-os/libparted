@@ -1,6 +1,8 @@
 use std::ffi::{CStr, CString};
 use std::io::{Error, ErrorKind, Result};
+use std::marker::PhantomData;
 use std::os::unix::ffi::OsStrExt;
+use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr;
 
@@ -13,11 +15,20 @@ use libparted_sys::{
     ped_device_close,
     ped_device_begin_external_access,
     ped_device_end_external_access,
+    ped_device_sync,
+    ped_device_sync_fast,
+    ped_device_write,
+    ped_device_is_busy,
+    ped_device_get_constraint,
+    ped_device_get_minimal_aligned_constraint,
+    ped_device_get_minimum_alignment,
+    ped_device_get_optimal_aligned_constraint,
+    ped_device_get_optimum_alignment
 };
 
 pub use libparted_sys::PedDeviceType as DeviceType;
 
-use super::cvt;
+use super::{cvt, Alignment, Constraint};
 
 pub struct Device(*mut PedDevice);
 
@@ -91,6 +102,89 @@ impl Device {
             ped_device_begin_external_access(self.0)
         })?;
         Ok(DeviceExternalAccess(self))
+    }
+
+    /// Flushes all write-behind caches that might be holding up writes.
+    /// 
+    /// It is slow because it guarantees cache coherency among all relevant caches.
+    pub fn sync(&mut self) -> Result<()> {
+        cvt(unsafe { ped_device_sync(self.0) })?;
+        Ok(())
+    }
+
+    /// Flushes all write-behind caches that might be holding writes.
+    /// 
+    /// It does not ensure cache coherency with other caches.
+    pub fn sync_fast(&mut self) -> Result<()> {
+        cvt(unsafe { ped_device_sync_fast(self.0) })?;
+        Ok(())
+    }
+
+    /// Indicates whether the device is busy.
+    pub fn is_busy(&self) -> bool {
+        unsafe { ped_device_is_busy(self.0) != 0 }
+    }
+
+    /// Attempts to write the data within the buffer to the device, starting
+    /// at the **start_sector**, and spanning across **sectors**.
+    pub fn write_to_sectors(
+        &mut self,
+        buffer: &[u8],
+        start_sector: i64,
+        sectors: i64
+    ) -> Result<()> {
+        let total_size = self.sector_size() as usize * sectors as usize;
+
+        // Ensure that the data will fit within the region of sectors.
+        assert!(buffer.len() <= total_size);
+        
+        // Write as much data as needed to fill the entire sector, writing
+        // zeros in the unused space, and obtaining a pointer to the buffer.
+        let mut sector_buffer: Vec<u8> = Vec::with_capacity(total_size);
+        sector_buffer.copy_from_slice(buffer);
+        for index in buffer.len()..total_size {
+            sector_buffer[index] = b'0';
+        }
+        let sector_ptr = sector_buffer.as_slice().as_ptr() as *const c_void;
+
+        // Then attempt to write the data to the device.
+        cvt(unsafe { ped_device_write(self.0, sector_ptr, start_sector, sectors) })?;
+        Ok(())
+    }
+
+    pub fn get_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_constraint(self.0) },
+            phantom: PhantomData
+        }
+    }
+
+    pub fn get_minimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_minimal_aligned_constraint(self.0) },
+            phantom: PhantomData
+        }
+    }
+
+    pub fn get_optimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
+        Constraint {
+            constraint: unsafe { ped_device_get_optimal_aligned_constraint(self.0) },
+            phantom: PhantomData
+        }
+    }
+
+    pub fn get_minimum_alignment<'a>(&'a self) -> Alignment<'a> {
+        Alignment {
+            alignment: unsafe { ped_device_get_minimum_alignment(self.0) },
+            phantom: PhantomData
+        }
+    }
+
+    pub fn get_optimal_alignment<'a>(&'a self) -> Alignment<'a> {
+        Alignment {
+            alignment: unsafe { ped_device_get_optimum_alignment(self.0) },
+            phantom: PhantomData
+        }
     }
 
     pub fn model(&self) -> &[u8] {
