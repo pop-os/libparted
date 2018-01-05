@@ -1,3 +1,4 @@
+extern crate libc;
 extern crate libparted;
 
 use libparted::{Device, Disk};
@@ -9,11 +10,49 @@ use std::str;
 fn list() -> Result<()> {
     for (dev_i, device_res) in Device::devices(true).enumerate() {
         let device = device_res?;
+        let hw_geom = device.hw_geom();
+        let bios_geom = device.bios_geom();
 
-        println!("Device {}", dev_i);
-        println!("  Model: {:?}", str::from_utf8(device.model()));
-        println!("  Path: {:?}", str::from_utf8(device.path()));
-        println!("  Size: {} MB", device.length() * device.sector_size() / 1000000);
+        println!(
+            "Device {}
+    Model: {:?}
+    Path: {:?}
+    Size: {} MB
+    Type: {:?}
+    Open Count: {}
+    Read Only: {}
+    External Mode: {}
+    Dirty: {}
+    Boot Dirty: {}
+    Hardware Geometry:
+        Cylinders: {}
+        Heads: {}
+        Sectors: {}
+    BIOS Geometry:
+        Cylinders: {}
+        Heads: {}
+        Sectors: {}
+    Host: {}
+    Did: {}",
+            dev_i,
+            str::from_utf8(device.model()),
+            str::from_utf8(device.path()),
+            device.length() * device.sector_size() / 1000000,
+            device.type_(),
+            device.open_count(),
+            device.read_only(),
+            device.external_mode(),
+            device.dirty(),
+            device.boot_dirty(),
+            hw_geom.cylinders,
+            hw_geom.heads,
+            hw_geom.sectors,
+            bios_geom.cylinders,
+            bios_geom.heads,
+            bios_geom.sectors,
+            device.host(),
+            device.did()
+        );
 
         let disk = Disk::new(device)?;
 
@@ -33,6 +72,11 @@ fn list() -> Result<()> {
 }
 
 fn main() {
+    if unsafe { libc::geteuid() } != 0 {
+        eprintln!("list: must be run with root");
+        process::exit(1);
+    }
+    
     if let Err(err) = list() {
         eprintln!("list: failed to list: {}", err);
         process::exit(1);
