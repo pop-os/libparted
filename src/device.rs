@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, OsStr};
 use std::io::{Error, ErrorKind, Result};
 use std::marker::PhantomData;
 use std::os::unix::ffi::OsStrExt;
@@ -6,123 +6,148 @@ use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr;
 
-use libparted_sys::{
-    PedDevice,
-    ped_device_probe_all,
-    ped_device_get,
-    ped_device_get_next,
-    ped_device_open,
-    ped_device_close,
-    ped_device_begin_external_access,
-    ped_device_end_external_access,
-    ped_device_sync,
-    ped_device_sync_fast,
-    ped_device_write,
-    ped_device_is_busy,
-    ped_device_get_constraint,
-    ped_device_get_minimal_aligned_constraint,
-    ped_device_get_minimum_alignment,
-    ped_device_get_optimal_aligned_constraint,
-    ped_device_get_optimum_alignment
-};
+use libparted_sys::{ped_constraint_any, ped_device_begin_external_access, ped_device_check,
+                    ped_device_close, ped_device_destroy, ped_device_end_external_access,
+                    ped_device_free_all, ped_device_get, ped_device_get_constraint,
+                    ped_device_get_minimal_aligned_constraint, ped_device_get_minimum_alignment,
+                    ped_device_get_next, ped_device_get_optimal_aligned_constraint,
+                    ped_device_get_optimum_alignment, ped_device_is_busy, ped_device_open,
+                    ped_device_probe_all, ped_device_sync, ped_device_sync_fast, ped_device_write,
+                    ped_disk_clobber, ped_disk_probe, PedDevice};
 
 pub use libparted_sys::PedDeviceType as DeviceType;
+pub use libparted_sys::_PedCHSGeometry as CHSGeometry;
 
-use super::{cvt, Alignment, Constraint};
+use super::{cvt, Alignment, Constraint, ConstraintSource, DiskType};
 
-pub struct Device(*mut PedDevice);
-
-pub struct DeviceIter(*mut PedDevice);
-
-pub struct DeviceExternalAccess<'a>(&'a mut Device);
-
-pub struct Geometry {
-    pub cylinders: i32,
-    pub heads: i32,
-    pub sectors: i32
+pub struct Device<'a> {
+    pub(crate) device: *mut PedDevice,
+    pub(crate) phantom: PhantomData<&'a PedDevice>,
 }
+
+pub struct DeviceIter<'a>(*mut PedDevice, PhantomData<&'a PedDevice>);
+
+pub struct DeviceExternalAccess<'a, 'b: 'a>(&'a mut Device<'b>);
 
 macro_rules! get_bool {
     ($field:tt) => {
         pub fn $field(&self) -> bool {
-            unsafe { *self.0 }.$field != 0
+            unsafe { *self.device }.$field != 0
         }
     }
 }
 
 macro_rules! get_geometry {
     ($kind:tt) => {
-        pub fn $kind(&self) -> Geometry {
-            unsafe {
-                let raw = (*self.0).$kind;
-                Geometry {
-                    cylinders: raw.cylinders as i32,
-                    heads: raw.heads as i32,
-                    sectors: raw.sectors as i32
-                }
-            }
+        pub fn $kind(&self) -> CHSGeometry {
+            unsafe { (*self.device).$kind }
         }
     }
 }
 
-impl Device {
-    pub fn devices(probe: bool) -> DeviceIter {
-        if probe {
-            unsafe {
-                ped_device_probe_all()
-            }
+impl<'a> Device<'a> {
+    fn new_(device: *mut PedDevice) -> Device<'a> {
+        Device {
+            device,
+            phantom: PhantomData,
         }
-        DeviceIter(ptr::null_mut())
     }
 
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Device> {
+    /// Return the type of partition table detected on `dev`
+    pub fn probe(&self) -> Option<DiskType> {
+        let disk_type = unsafe { ped_disk_probe(self.device) };
+        if disk_type.is_null() {
+            None
+        } else {
+            Some(DiskType {
+                type_: disk_type,
+                phantom: PhantomData,
+            })
+        }
+    }
+
+    /// Attempts to detect all devices, constructing an **Iterator** which will
+    /// contain a list of all of the devices. If you want to use a device that isn't
+    /// on the list, use the `new()` method, or an OS-specific constructor such as
+    /// `new_from_store()`.
+    pub fn devices<'b>(probe: bool) -> DeviceIter<'b> {
+        if probe {
+            unsafe { ped_device_probe_all() }
+        }
+
+        DeviceIter(ptr::null_mut(), PhantomData)
+    }
+
+    /// Attempts to get the device of the given `path`, then attempts to open that device.
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Device<'a>> {
+        // Convert the supplied path into a C-compatible string.
         let os_str = path.as_ref().as_os_str();
-        let cstr = CString::new(os_str.as_bytes()).map_err(|err| {
-            Error::new(ErrorKind::InvalidData, format!("Inavlid data: {}", err))
-        })?;
-        let device = cvt(unsafe {
-            ped_device_get(cstr.as_ptr())
-        })?;
-        cvt(unsafe {
-            ped_device_open(device)
-        })?;
-        Ok(Device(device))
+        let cstr = CString::new(os_str.as_bytes())
+            .map_err(|err| Error::new(ErrorKind::InvalidData, format!("Inavlid data: {}", err)))?;
+
+        // Then attempt to get the device, and open it before returning it.
+        let device = cvt(unsafe { ped_device_get(cstr.as_ptr()) })?;
+        cvt(unsafe { ped_device_open(device) })?;
+        Ok(Device::new_(device))
     }
 
-    pub unsafe fn from_ped_device(device: *mut PedDevice) -> Device {
-        Device(device)
+    pub unsafe fn from_ped_device(device: *mut PedDevice) -> Device<'a> {
+        Device::new_(device)
     }
 
     pub unsafe fn ped_device(&self) -> *mut PedDevice {
-        self.0
+        self.device
     }
 
-    pub fn external_access<'a>(&'a mut self) -> Result<DeviceExternalAccess<'a>> {
-        cvt(unsafe {
-            ped_device_begin_external_access(self.0)
-        })?;
+    /// Return a constraint that any region on the given device will satisfy.
+    pub fn constraint_any<'b>(&'b self) -> Option<Constraint<'b>> {
+        let constraint = unsafe { ped_constraint_any(self.device) };
+        if constraint.is_null() {
+            None
+        } else {
+            Some(Constraint {
+                constraint,
+                source: ConstraintSource::New,
+                phantom: PhantomData,
+            })
+        }
+    }
+
+    /// Begins external access mode.
+    ///
+    /// External access mode allows you to safely do I/O on the device. If a device is open,
+    /// then you should not do any I/O on that device, such as by calling an external program
+    /// like e2fsck, unless you put it in external access mode. You should not use any libparted
+    /// commands that do I/O to a device while a device is in external access mode.
+    ///
+    /// # Note:
+    ///
+    /// You should not close a device while it is in external access mode.
+    pub fn external_access<'b>(&'b mut self) -> Result<DeviceExternalAccess<'a, 'b>> {
+        cvt(unsafe { ped_device_begin_external_access(self.device) })?;
+
         Ok(DeviceExternalAccess(self))
     }
 
     /// Flushes all write-behind caches that might be holding up writes.
-    /// 
+    ///
     /// It is slow because it guarantees cache coherency among all relevant caches.
     pub fn sync(&mut self) -> Result<()> {
-        cvt(unsafe { ped_device_sync(self.0) })?;
+        cvt(unsafe { ped_device_sync(self.device) })?;
         Ok(())
     }
 
     /// Flushes all write-behind caches that might be holding writes.
-    /// 
+    ///
     /// It does not ensure cache coherency with other caches.
     pub fn sync_fast(&mut self) -> Result<()> {
-        cvt(unsafe { ped_device_sync_fast(self.0) })?;
+        cvt(unsafe { ped_device_sync_fast(self.device) })?;
         Ok(())
     }
 
     /// Indicates whether the device is busy.
     pub fn is_busy(&self) -> bool {
-        unsafe { ped_device_is_busy(self.0) != 0 }
+        unsafe { ped_device_is_busy(self.device) != 0 }
     }
 
     /// Attempts to write the data within the buffer to the device, starting
@@ -131,13 +156,13 @@ impl Device {
         &mut self,
         buffer: &[u8],
         start_sector: i64,
-        sectors: i64
+        sectors: i64,
     ) -> Result<()> {
         let total_size = self.sector_size() as usize * sectors as usize;
 
         // Ensure that the data will fit within the region of sectors.
         assert!(buffer.len() <= total_size);
-        
+
         // Write as much data as needed to fill the entire sector, writing
         // zeros in the unused space, and obtaining a pointer to the buffer.
         let mut sector_buffer: Vec<u8> = Vec::with_capacity(total_size);
@@ -148,85 +173,129 @@ impl Device {
         let sector_ptr = sector_buffer.as_slice().as_ptr() as *const c_void;
 
         // Then attempt to write the data to the device.
-        cvt(unsafe { ped_device_write(self.0, sector_ptr, start_sector, sectors) })?;
+        cvt(unsafe { ped_device_write(self.device, sector_ptr, start_sector, sectors) })?;
         Ok(())
     }
 
-    pub fn get_constraint<'a>(&'a self) -> Constraint<'a> {
+    /// Get a constraint that represents hardware requirements on geometry.
+    ///
+    /// This function will return a constraint representing the limits imposed by the size
+    /// of the disk. It will not provide any alignment constraints.
+    ///
+    /// Alignment constraint may be desirable when using media that has a physical
+    /// sector size that is a multiple of the logical sector size, as in this case proper
+    /// partition alignment can benefit disk performance significantly.
+    ///
+    /// # Note:
+    ///
+    /// When you want a constraint with alignment info, use the following methods:
+    /// - `Device::get_minimal_aligned_constraint()`
+    /// - `Device::get_optimal_aligned_constraint()`
+    pub fn get_constraint(&self) -> Result<Constraint<'a>> {
+        Ok(Constraint {
+            constraint: cvt(unsafe { ped_device_get_constraint(self.device) })?,
+            source: ConstraintSource::New,
+            phantom: PhantomData,
+        })
+    }
+
+    /// Get a constraint that represents hardware requirements on geometry and alignment.
+    ///
+    /// This function will return a constraint representing the limits imposed by the size of
+    /// the disk and the minimal alignment requirements for proper performance of the disk.
+    pub fn get_minimal_aligned_constraint<'b>(&'b self) -> Result<Constraint<'b>> {
+        Ok(Constraint {
+            constraint: cvt(unsafe { ped_device_get_minimal_aligned_constraint(self.device) })?,
+            source: ConstraintSource::New,
+            phantom: PhantomData,
+        })
+    }
+
+    /// Get a constraint that represents hardware requirements on geometry and alignment.
+    ///
+    /// This function will return a constraint representing the limits imposed by the size of
+    /// the disk and the alignment requirements for optimal performance of the disk.
+    pub fn get_optimal_aligned_constraint<'b>(&'b self) -> Constraint<'b> {
         Constraint {
-            constraint: unsafe { ped_device_get_constraint(self.0) },
-            phantom: PhantomData
+            constraint: unsafe { ped_device_get_optimal_aligned_constraint(self.device) },
+            source: ConstraintSource::New,
+            phantom: PhantomData,
         }
     }
 
-    pub fn get_minimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
-        Constraint {
-            constraint: unsafe { ped_device_get_minimal_aligned_constraint(self.0) },
-            phantom: PhantomData
+    /// Get an alignment that represents minimum hardware requirements on alignment.
+    ///
+    /// When using media that has a physical sector size that is a multiple of the logical sector
+    /// size, it is desirable to have disk accesses (and thus partitions) properly aligned. Having
+    /// partitions not aligned to the minimum hardware requirements may lead to a performance
+    /// penalty.
+    ///
+    /// The returned alignment describes the alignment for the start sector of the partition.
+    /// The end sector should be aligned too. To get the end sector alignment, decrease the
+    /// returned alignment's offset by 1.
+    pub fn get_minimum_alignment<'b>(&'b self) -> Option<Alignment<'b>> {
+        let alignment = unsafe { ped_device_get_minimum_alignment(self.device) };
+        if alignment.is_null() {
+            None
+        } else {
+            Some(Alignment {
+                alignment,
+                phantom: PhantomData,
+            })
         }
     }
 
-    pub fn get_optimal_aligned_constraint<'a>(&'a self) -> Constraint<'a> {
-        Constraint {
-            constraint: unsafe { ped_device_get_optimal_aligned_constraint(self.0) },
-            phantom: PhantomData
+    /// Get an alignment that represents the hardware requirements for optimal performance.
+    ///
+    /// The returned alignment describes the alignment for the start sector of the partition.
+    /// The end sector should be aligned too. To get the end alignment, decrease the returned
+    /// alignment's offset by 1.
+    pub fn get_optimum_alignment<'b>(&'b self) -> Option<Alignment<'b>> {
+        let alignment = unsafe { ped_device_get_optimum_alignment(self.device) };
+        if alignment.is_null() {
+            None
+        } else {
+            Some(Alignment {
+                alignment,
+                phantom: PhantomData,
+            })
         }
     }
 
-    pub fn get_minimum_alignment<'a>(&'a self) -> Alignment<'a> {
-        Alignment {
-            alignment: unsafe { ped_device_get_minimum_alignment(self.0) },
-            phantom: PhantomData
-        }
-    }
-
-    pub fn get_optimal_alignment<'a>(&'a self) -> Alignment<'a> {
-        Alignment {
-            alignment: unsafe { ped_device_get_optimum_alignment(self.0) },
-            phantom: PhantomData
-        }
+    /// Remove all identifying signatures of a partition table.
+    pub fn clobber(&mut self) -> Result<()> {
+        cvt(unsafe { ped_disk_clobber(self.device) })?;
+        Ok(())
     }
 
     pub fn model(&self) -> &[u8] {
-        unsafe {
-            CStr::from_ptr((*self.0).model).to_bytes()
-        }
+        unsafe { CStr::from_ptr((*self.device).model).to_bytes() }
     }
 
-    pub fn path(&self) -> &[u8] {
-        unsafe {
-            CStr::from_ptr((*self.0).path).to_bytes()
-        }
+    pub fn path(&self) -> &Path {
+        let cstr = unsafe { CStr::from_ptr((*self.device).path) };
+        let os_str = OsStr::from_bytes(cstr.to_bytes());
+        &Path::new(os_str)
     }
 
     pub fn type_(&self) -> DeviceType {
-        unsafe {
-            (*self.0).type_ as DeviceType
-        }
+        unsafe { (*self.device).type_ as DeviceType }
     }
 
     pub fn sector_size(&self) -> u64 {
-        unsafe {
-            (*self.0).sector_size as u64
-        }
+        unsafe { (*self.device).sector_size as u64 }
     }
 
     pub fn phys_sector_size(&self) -> u64 {
-        unsafe {
-            (*self.0).phys_sector_size as u64
-        }
+        unsafe { (*self.device).phys_sector_size as u64 }
     }
 
     pub fn length(&self) -> u64 {
-        unsafe {
-            (*self.0).length as u64
-        }
+        unsafe { (*self.device).length as u64 }
     }
 
     pub fn open_count(&self) -> isize {
-        unsafe {
-            (*self.0).open_count as isize
-        }
+        unsafe { (*self.device).open_count as isize }
     }
 
     get_bool!(read_only);
@@ -237,53 +306,44 @@ impl Device {
     get_geometry!(bios_geom);
 
     pub fn host(&self) -> i16 {
-        unsafe {
-            (*self.0).host as i16
-        }
+        unsafe { (*self.device).host as i16 }
     }
 
     pub fn did(&self) -> i16 {
-        unsafe {
-            (*self.0).did as i16
-        }
+        unsafe { (*self.device).did as i16 }
     }
 
     // TODO: arch_specific
 }
 
-impl Iterator for DeviceIter {
-    type Item = Result<Device>;
-    fn next(&mut self) -> Option<Result<Device>> {
-        let device = unsafe {
-            ped_device_get_next(self.0)
-        };
+impl<'a> Iterator for DeviceIter<'a> {
+    type Item = Result<Device<'a>>;
+    fn next(&mut self) -> Option<Result<Device<'a>>> {
+        let device = unsafe { ped_device_get_next(self.0) };
         if device.is_null() {
             None
         } else {
             self.0 = device;
             Some(
-                cvt(unsafe {
-                    ped_device_open(device)
-                }).and(Ok(unsafe {
-                    Device::from_ped_device(device)
-                }))
+                cvt(unsafe { ped_device_open(device) })
+                    .and(Ok(unsafe { Device::from_ped_device(device) })),
             )
         }
     }
 }
 
-impl Drop for Device {
+impl<'a> Drop for Device<'a> {
     fn drop(&mut self) {
         unsafe {
-            ped_device_close(self.0);
+            ped_device_close(self.device);
         }
     }
 }
 
-impl<'a> Drop for DeviceExternalAccess<'a> {
+impl<'a, 'b> Drop for DeviceExternalAccess<'a, 'b> {
     fn drop(&mut self) {
         unsafe {
-            ped_device_end_external_access((self.0).0);
+            ped_device_end_external_access((self.0).device);
         }
     }
 }

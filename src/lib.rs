@@ -4,15 +4,31 @@ use std::io;
 
 pub use self::alignment::Alignment;
 pub use self::constraint::Constraint;
-pub use self::device::{Device, Geometry};
-pub use self::disk::Disk;
-pub use self::partition::Partition;
+pub use self::device::{CHSGeometry, Device, DeviceExternalAccess, DeviceIter};
+pub use self::disk::{Disk, DiskFlag, DiskPartIter, DiskType, DiskTypeFeature};
+pub use self::file_system::FileSystemType;
+pub use self::geometry::Geometry;
+pub use self::partition::{Partition, PartitionFlag, PartitionType};
+pub use self::timer::Timer;
+
+pub(crate) use self::constraint::ConstraintSource;
 
 mod alignment;
 mod constraint;
 mod device;
 mod disk;
+mod file_system;
+mod geometry;
 mod partition;
+mod timer;
+
+pub(crate) fn get_optional<T>(data: *mut T) -> Option<*mut T> {
+    if data.is_null() {
+        None
+    } else {
+        Some(data)
+    }
+}
 
 #[doc(hidden)]
 pub trait IsZero {
