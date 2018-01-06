@@ -57,28 +57,16 @@ fn list() -> Result<()> {
         let disk = Disk::new(device)?;
 
         for (part_i, part) in disk.parts().enumerate() {
-            println!(
-                "  Part {}
-    Type:   {:?}
-    Name:   {:?}
-    Path:   {:?}
-    Active: {}
-    Busy:   {}
-    FS:     {:?}
-    Start:  {},
-    End:    {},
-    Length: {}",
-                part_i,
-                str::from_utf8(part.type_get_name()),
-                part.name(),
-                part.get_path(),
-                part.is_active(),
-                part.is_busy(),
-                part.fs_type_name().map(str::from_utf8),
-                part.geom_start(),
-                part.geom_end(),
-                part.geom_length()
-            );
+            println!("    Part {}", part_i);
+            println!("        Name:   {:?}", str::from_utf8(part.type_get_name()));
+            println!("        Type:   {:?}", part.name());
+            println!("        Path:   {:?}", part.get_path());
+            println!("        Active: {}", part.is_active());
+            println!("        Busy:   {}", part.is_busy());
+            println!("        FS:     {:?}", part.fs_type_name().map(str::from_utf8));
+            println!("        Start:  {}", part.geom_start());
+            println!("        End:    {}", part.geom_end());
+            println!("        Length: {}", part.geom_length());
         }
     }
 

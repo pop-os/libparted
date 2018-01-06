@@ -3,7 +3,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
 use std::path::Path;
-use super::{cvt, Device, Disk, FileSystemType, Geometry};
+use super::{cvt, Device, Disk, FileSystemType};
 
 use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
@@ -130,7 +130,14 @@ impl<'a> Partition<'a> {
     /// Returns the name of a partition `part`. This will only work if the disk label supports it.
     pub fn name(&self) -> Option<&[u8]> {
         if self.is_active() {
-            unsafe { Some(CStr::from_ptr(ped_partition_get_name(self.part)).to_bytes()) }
+            unsafe {
+                let name = ped_partition_get_name(self.part);
+                if name.is_null() {
+                    None
+                } else {
+                    Some(CStr::from_ptr(name).to_bytes())
+                }
+            }
         } else {
             None
         }
