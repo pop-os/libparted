@@ -96,6 +96,30 @@ impl<'a> Constraint<'a> {
         Ok(())
     }
 
+    pub fn start_align<'b>(&'b self) -> Alignment<'b> {
+        Alignment::from_raw(unsafe { (*self.constraint).start_align })
+    }
+
+    pub fn end_align<'b>(&'b self) -> Alignment<'b> {
+        Alignment::from_raw(unsafe { (*self.constraint).end_align })
+    }
+
+    pub fn start_range<'b>(&'b self) -> Geometry<'b> {
+        Geometry::from_raw(unsafe { (*self.constraint).start_range })
+    }
+
+    pub fn end_range<'b>(&'b self) -> Geometry<'b> {
+        Geometry::from_raw(unsafe { (*self.constraint).end_range })
+    }
+
+    pub fn min_size(&'a self) -> i64 {
+        unsafe { (*self.constraint).min_size }
+    }
+
+    pub fn max_size(&'a self) -> i64 {
+        unsafe { (*self.constraint).max_size }
+    }
+
     /// Duplicates a constraint, if possible.
     pub fn duplicate(&self) -> io::Result<Constraint> {
         cvt(unsafe { ped_constraint_duplicate(self.constraint) })

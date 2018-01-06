@@ -6,9 +6,11 @@ pub use self::alignment::Alignment;
 pub use self::constraint::Constraint;
 pub use self::device::{CHSGeometry, Device, DeviceExternalAccess, DeviceIter};
 pub use self::disk::{Disk, DiskFlag, DiskPartIter, DiskType, DiskTypeFeature};
-pub use self::file_system::FileSystemType;
+pub use self::file_system::{FileSystem, FileSystemAlias, FileSystemAliasIter, FileSystemType,
+                            FileSystemTypeIter};
 pub use self::geometry::Geometry;
 pub use self::partition::{Partition, PartitionFlag, PartitionType};
+pub use self::misc::{round_down_to, round_to_nearest, round_up_to};
 pub use self::timer::Timer;
 
 pub(crate) use self::constraint::ConstraintSource;
@@ -19,6 +21,7 @@ mod device;
 mod disk;
 mod file_system;
 mod geometry;
+mod misc;
 mod partition;
 mod timer;
 

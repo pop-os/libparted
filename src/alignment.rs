@@ -13,7 +13,7 @@ pub struct Alignment<'a> {
 }
 
 impl<'a> Alignment<'a> {
-    fn new_(alignment: *mut PedAlignment) -> Alignment<'a> {
+    pub fn from_raw(alignment: *mut PedAlignment) -> Alignment<'a> {
         Alignment {
             alignment,
             phantom: PhantomData,
@@ -23,7 +23,7 @@ impl<'a> Alignment<'a> {
     /// Return an alignment object representing all sectors that are of the form
     /// `offset + X * grain_size`.
     pub fn new(offset: i64, grain_size: i64) -> io::Result<Alignment<'a>> {
-        cvt(unsafe { ped_alignment_new(offset, grain_size) }).map(Alignment::new_)
+        cvt(unsafe { ped_alignment_new(offset, grain_size) }).map(Alignment::from_raw)
     }
 
     /// Initializes a preallocated piece of memory for an alignment object.
@@ -70,17 +70,25 @@ impl<'a> Alignment<'a> {
         })
     }
 
+    pub fn grain_size(&self) -> i64 {
+        unsafe { (*self.alignment).grain_size }
+    }
+
     /// Returns a new **Alignment** object if an intersection can between
     /// itself and a given `other` **Alignment**.
     pub fn intersect(&self, other: &Alignment) -> Option<Alignment<'a>> {
         get_optional(unsafe { ped_alignment_intersect(self.alignment, other.alignment) })
-            .map(Alignment::new_)
+            .map(Alignment::from_raw)
     }
 
     /// Returns the sector that is closest to `sector`, satifies the `align` constraint, and lies
     /// lies inside `geom`.
     pub fn is_aligned(&self, geom: &Geometry, sector: i64) -> bool {
         unsafe { ped_alignment_is_aligned(self.alignment, geom.geometry, sector) == 1 }
+    }
+
+    pub fn offset(&self) -> i64 {
+        unsafe { (*self.alignment).offset }
     }
 }
 impl<'a> Drop for Alignment<'a> {

@@ -7,13 +7,13 @@ use std::path::Path;
 use std::ptr;
 
 use libparted_sys::{ped_constraint_any, ped_device_begin_external_access, ped_device_check,
-                    ped_device_close, ped_device_destroy, ped_device_end_external_access,
-                    ped_device_free_all, ped_device_get, ped_device_get_constraint,
-                    ped_device_get_minimal_aligned_constraint, ped_device_get_minimum_alignment,
-                    ped_device_get_next, ped_device_get_optimal_aligned_constraint,
-                    ped_device_get_optimum_alignment, ped_device_is_busy, ped_device_open,
-                    ped_device_probe_all, ped_device_sync, ped_device_sync_fast, ped_device_write,
-                    ped_disk_clobber, ped_disk_probe, PedDevice};
+                    ped_device_close, ped_device_end_external_access, ped_device_get,
+                    ped_device_get_constraint, ped_device_get_minimal_aligned_constraint,
+                    ped_device_get_minimum_alignment, ped_device_get_next,
+                    ped_device_get_optimal_aligned_constraint, ped_device_get_optimum_alignment,
+                    ped_device_is_busy, ped_device_open, ped_device_probe_all, ped_device_sync,
+                    ped_device_sync_fast, ped_device_write, ped_disk_clobber, ped_disk_probe,
+                    PedDevice};
 
 pub use libparted_sys::PedDeviceType as DeviceType;
 pub use libparted_sys::_PedCHSGeometry as CHSGeometry;
@@ -50,6 +50,22 @@ impl<'a> Device<'a> {
         Device {
             device,
             phantom: PhantomData,
+        }
+    }
+
+    /// Returns the first bad sector if a bad sector was found.
+    ///
+    /// # Binding Note
+    ///
+    /// Not 100% sure if this is what this method does, as libparted's source
+    /// code did not document the behavior of the function. Am basing this
+    /// off the `check()` method that was documented for **Geometry**.
+    pub fn check(&self, start: i64, count: i64) -> Option<u64> {
+        let mut buffer: Vec<u8> = Vec::with_capacity(8192);
+        let buffer_ptr = buffer.as_mut_slice().as_mut_ptr() as *mut c_void;
+        match unsafe { ped_device_check(self.device, buffer_ptr, start, count) } {
+            -1 => None,
+            bad_sector => Some(bad_sector as u64),
         }
     }
 

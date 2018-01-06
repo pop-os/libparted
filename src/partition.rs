@@ -3,7 +3,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
 use std::path::Path;
-use super::{cvt, Disk, FileSystemType};
+use super::{cvt, Device, Disk, FileSystemType, Geometry};
 
 use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
@@ -47,6 +47,46 @@ impl<'a> Partition<'a> {
     ) -> io::Result<Partition<'a>> {
         cvt(unsafe { ped_partition_new(disk.disk, type_, fs_type.fs, start, end) })
             .map(|partition| unsafe { Partition::from_ped_partition(partition) })
+    }
+
+    pub fn num(&'a self) -> i32 {
+        unsafe { (*self.part).num }
+    }
+
+    pub fn fs_type_name(&'a self) -> Option<&[u8]> {
+        unsafe {
+            let fs_type = (*self.part).fs_type;
+            if fs_type.is_null() {
+                None
+            } else {
+                let fs_name = (*fs_type).name;
+                if fs_name.is_null() {
+                    None
+                } else {
+                    Some(CStr::from_ptr(fs_name).to_bytes())
+                }
+            }
+        }
+    }
+
+    pub fn get_device(&'a self) -> Device<'a> {
+        unsafe { Device::from_ped_device((*self.part).geom.dev) }
+    }
+
+    pub fn get_device_mut(&'a mut self) -> Device<'a> {
+        unsafe { Device::from_ped_device((*self.part).geom.dev) }
+    }
+
+    pub fn geom_start(&'a self) -> i64 {
+        unsafe { (*self.part).geom.start }
+    }
+
+    pub fn geom_length(&'a self) -> i64 {
+        unsafe { (*self.part).geom.length }
+    }
+
+    pub fn geom_end(&'a self) -> i64 {
+        unsafe { (*self.part).geom.end }
     }
 
     /// Get the state of a flag on the disk.
