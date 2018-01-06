@@ -36,7 +36,7 @@ fn list() -> Result<()> {
     Did: {}",
             dev_i,
             str::from_utf8(device.model()),
-            str::from_utf8(device.path()),
+            device.path(),
             device.length() * device.sector_size() / 1000000,
             device.type_(),
             device.open_count(),
@@ -58,12 +58,12 @@ fn list() -> Result<()> {
 
         for (part_i, part) in disk.parts().enumerate() {
             println!("  Part {}", part_i);
-            println!("    Type: {:?}", str::from_utf8(part.type_name()));
+            println!("    Type: {:?}", str::from_utf8(part.type_get_name()));
             if let Some(name) = part.name() {
                 println!("    Name: {:?}", str::from_utf8(name));
             }
-            if let Some(path) = part.path() {
-                println!("    Path: {:?}", str::from_utf8(path));
+            if let Some(path) = part.get_path() {
+                println!("    Path: {:?}", path);
             }
         }
     }
@@ -76,7 +76,7 @@ fn main() {
         eprintln!("list: must be run with root");
         process::exit(1);
     }
-    
+
     if let Err(err) = list() {
         eprintln!("list: failed to list: {}", err);
         process::exit(1);
