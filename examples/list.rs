@@ -55,6 +55,7 @@ fn list() -> Result<()> {
         );
 
         let disk = Disk::new(device)?;
+        eprintln!("    Disk Type: {:?}", disk.get_disk_type_name().map(str::from_utf8));
 
         for (part_i, part) in disk.parts().enumerate() {
             println!("    Part {}", part_i);

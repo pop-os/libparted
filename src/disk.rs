@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::io::Result;
 use std::marker::PhantomData;
 use std::ptr;
@@ -125,9 +125,16 @@ impl<'a> Disk<'a> {
         unsafe { Device::from_ped_device((*self.disk).dev) }
     }
 
-    /// Obtains a raw immutable pointer to the disk type.
-    pub fn get_disk_type<'b>(&'b self) -> *const PedDiskType {
-        unsafe { (*self.disk).type_ }
+    pub fn get_disk_type_name<'b>(&'b self) -> Option<&[u8]> {
+        unsafe {
+            let type_ = (*self.disk).type_;
+            let name = (*type_).name;
+            if name.is_null() {
+                None
+            } else {
+                Some(CStr::from_ptr(name).to_bytes())
+            }
+        }
     }
 
     pub fn needs_clobber(&self) -> bool {
