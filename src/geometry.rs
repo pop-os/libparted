@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::io;
-use super::{cvt, get_optional, Constraint, ConstraintSource, Device, Timer};
-use libparted_sys::{ped_constraint_exact, ped_geometry_check, ped_geometry_destroy,
+use super::{cvt, get_optional, Constraint, ConstraintSource, Device, FileSystem, FileSystemType,
+            Timer};
+use libparted_sys::{ped_constraint_exact, ped_file_system_open, ped_file_system_probe,
+                    ped_file_system_probe_specific, ped_geometry_check, ped_geometry_destroy,
                     ped_geometry_duplicate, ped_geometry_init, ped_geometry_intersect,
                     ped_geometry_map, ped_geometry_new, ped_geometry_read, ped_geometry_set,
                     ped_geometry_set_end, ped_geometry_set_start, ped_geometry_sync,
@@ -15,6 +17,13 @@ pub struct Geometry<'a> {
 }
 
 impl<'a> Geometry<'a> {
+    pub fn from_raw(geometry: *mut PedGeometry) -> Geometry<'a> {
+        Geometry {
+            geometry,
+            phantom: PhantomData,
+        }
+    }
+
     /// Return a constraint that only the given region will satisfy.
     pub fn exact(&self) -> Option<Constraint> {
         get_optional(unsafe { ped_constraint_exact(self.geometry) }).map(|constraint| Constraint {
@@ -64,12 +73,24 @@ impl<'a> Geometry<'a> {
         }
     }
 
+    pub fn dev<'b>(&'b self) -> Device<'b> {
+        unsafe { Device::from_ped_device((*self.geometry).dev) }
+    }
+
+    pub fn dev_mut<'b>(&'b mut self) -> Device<'b> {
+        unsafe { Device::from_ped_device((*self.geometry).dev) }
+    }
+
     /// Duplicate a `Geometry` object.
     pub fn duplicate(&self) -> io::Result<Geometry<'a>> {
         cvt(unsafe { ped_geometry_duplicate(self.geometry) }).map(|geometry| Geometry {
             geometry,
             phantom: PhantomData,
         })
+    }
+
+    pub fn end(&self) -> i64 {
+        unsafe { (*self.geometry).end }
     }
 
     /// Initializes a pre-allocated **Geometry**.
@@ -87,6 +108,10 @@ impl<'a> Geometry<'a> {
                 phantom: PhantomData,
             },
         )
+    }
+
+    pub fn length(&self) -> i64 {
+        unsafe { (*self.geometry).length }
     }
 
     /// Takes a `sector` inside the region described by `src` and returns that sector's address
@@ -163,6 +188,10 @@ impl<'a> Geometry<'a> {
         cvt(unsafe { ped_geometry_set_start(self.geometry, start) }).map(|_| ())
     }
 
+    pub fn start(&self) -> i64 {
+        unsafe { (*self.geometry).start }
+    }
+
     /// Flushes the cache on `self`.
     ///
     /// This function flushses all write-behind caches that might be holding writes made by
@@ -210,6 +239,47 @@ impl<'a> Geometry<'a> {
             let buffer_ptr = buffer.as_ptr() as *const c_void;
             cvt(unsafe { ped_geometry_write(self.geometry, buffer_ptr, offset, count) }).map(|_| ())
         }
+    }
+
+    /// Opens the file system stored in the given **Geometry**.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut fs = FileSystem::open(&mut geometry);
+    /// ```
+    ///
+    /// ```rust
+    /// let mut fs = geometry.open_fs();
+    /// ```
+    ///
+    /// # Throws
+    ///
+    /// - `PED_EXCEPTION_ERROR` if the file system could not be detected.
+    /// - `PED_EXCEPTION_ERROR` if the file system is bigger than its volume.
+    /// - `PED_EXCEPTION_NO_FEATURE` if opening of a file system stored on `geom` is
+    ///     not implemented.
+    pub fn open_fs<'b>(&'b self) -> Option<FileSystem<'b>> {
+        get_optional(unsafe { ped_file_system_open(self.geometry) }).map(FileSystem::from_raw)
+    }
+
+    /// Attempt to detect a file system in the given **Geometry**.
+    ///
+    /// This function tries to be clever at dealing with ambiguous situations, such as
+    /// when one file system was not completely erased before a new file system was created on
+    /// on top of it.
+    pub fn probe_fs<'b>(&'b self) -> io::Result<FileSystemType<'b>> {
+        cvt(unsafe { ped_file_system_probe(self.geometry) }).map(FileSystemType::from_raw)
+    }
+
+    /// Attempt to find a file system and return the region it occupies.
+    pub fn probe_specific_fs<'b>(&'b self, fs_type: &'b FileSystemType) -> Option<Geometry<'b>> {
+        get_optional(unsafe { ped_file_system_probe_specific(fs_type.fs, self.geometry) }).map(
+            |geometry| Geometry {
+                geometry,
+                phantom: PhantomData,
+            },
+        )
     }
 }
 
