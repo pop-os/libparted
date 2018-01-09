@@ -16,7 +16,10 @@ fn list() -> Result<()> {
         println!("Device {}", dev_i);
         println!("    Mode:          {:?}", str::from_utf8(device.model()));
         println!("    Path:          {:?}", device.path());
-        println!("    Size:          {} MB", device.length() * device.sector_size() / 1000000);
+        println!(
+            "    Size:          {} MB",
+            device.length() * device.sector_size() / 1000000
+        );
         println!("    Type:          {:?}", device.type_());
         println!("    Open Count:    {}", device.open_count());
         println!("    Read Only:     {}", device.read_only());
@@ -35,7 +38,10 @@ fn list() -> Result<()> {
         println!("    Did:           {}", device.did());
 
         let disk = Disk::new(device)?;
-        eprintln!("    Disk Type: {:?}", disk.get_disk_type_name().map(str::from_utf8));
+        eprintln!(
+            "    Disk Type: {:?}",
+            disk.get_disk_type_name().map(str::from_utf8)
+        );
 
         for (part_i, part) in disk.parts().enumerate() {
             println!("    Part {}", part_i);

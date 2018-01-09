@@ -13,19 +13,28 @@ fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, St
     let fs = args.next().ok_or_else(|| config_err("no fs provided"))?;
     let start_str = args.next().ok_or_else(|| config_err("no start provided"))?;
     let length_str = args.next().ok_or_else(|| config_err("no length provided"))?;
-    let start = start_str.parse::<u64>().or_else(|_| Err(config_err("invalid start value")))?;
-    let length = length_str.parse::<u64>().or_else(|_| Err(config_err("invalid start value")))?;
+    let start = start_str
+        .parse::<u64>()
+        .or_else(|_| Err(config_err("invalid start value")))?;
+    let length = length_str
+        .parse::<u64>()
+        .or_else(|_| Err(config_err("invalid start value")))?;
 
     Ok((device, fs, start, length))
 }
 
 // TODO: Figure out how to get the file system type to be properly set.
-fn create_partition_with_filesystem(device: &str, fs: &str, start: u64, length: u64) -> Result<(), ()> {
+fn create_partition_with_filesystem(
+    device: &str,
+    fs: &str,
+    start: u64,
+    length: u64,
+) -> Result<(), ()> {
     let dev = match Device::new(&device) {
         Ok(device) => device,
         Err(why) => {
             eprintln!("mkfs: unable to open {} device: {}", device, why);
-            return Err(())
+            return Err(());
         }
     };
 
@@ -41,7 +50,7 @@ fn create_partition_with_filesystem(device: &str, fs: &str, start: u64, length: 
         Ok(disk) => disk,
         Err(why) => {
             eprintln!("mkfs: unable to open {} disk: {}", device, why);
-            return Err(())
+            return Err(());
         }
     };
 
@@ -55,7 +64,13 @@ fn create_partition_with_filesystem(device: &str, fs: &str, start: u64, length: 
 
     let part_type = PartitionType::PED_PARTITION_NORMAL;
 
-    let mut partition = match Partition::new(&mut disk, part_type, &fs_type, geometry.start(), geometry.length()) {
+    let mut partition = match Partition::new(
+        &mut disk,
+        part_type,
+        &fs_type,
+        geometry.start(),
+        geometry.length(),
+    ) {
         Ok(partition) => partition,
         Err(why) => {
             eprintln!("unable to create partition: {}", why);
@@ -82,7 +97,10 @@ fn create_partition_with_filesystem(device: &str, fs: &str, start: u64, length: 
     }
 
     if let Err(why) = partition.set_system(&fs_type) {
-        eprintln!("unable to set the system type of the partition to the file system type: {}", why);
+        eprintln!(
+            "unable to set the system type of the partition to the file system type: {}",
+            why
+        );
         return Err(());
     }
 
@@ -107,5 +125,9 @@ fn main() {
         }
     };
 
-    exit(create_partition_with_filesystem(&device, &fs, start, length).ok().map_or(1, |_| 0));
+    exit(
+        create_partition_with_filesystem(&device, &fs, start, length)
+            .ok()
+            .map_or(1, |_| 0),
+    );
 }

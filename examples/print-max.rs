@@ -24,5 +24,4 @@ fn main() {
         disk.max_partition_length(),
         disk.max_partition_start_sector()
     );
-
 }

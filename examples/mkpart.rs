@@ -1,5 +1,6 @@
 extern crate failure;
-#[macro_use] extern crate failure_derive;
+#[macro_use]
+extern crate failure_derive;
 extern crate libparted;
 
 use libparted::*;
@@ -28,20 +29,13 @@ fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, u6
 
 #[derive(Debug, Fail)]
 pub enum PartedError {
-    #[fail(display = "unable to open device: {}", why)]
-    OpenDevice { why: io::Error },
-    #[fail(display = "unable to create new geometry: {}", why)]
-    CreateGeometry { why: io::Error },
-    #[fail(display = "unable to create new disk: {}", why)]
-    CreateDisk { why: io::Error },
-    #[fail(display = "unable to create new partition: {}", why)]
-    CreatePartition { why: io::Error },
-    #[fail(display = "unable to get exact constraint from geometry")]
-    ExactConstraint,
-    #[fail(display = "unable to add partition to disk: {}", why)]
-    AddPartition { why: io::Error },
-    #[fail(display = "unable to commit changes to disk: {}", why)]
-    CommitChanges { why: io::Error },
+    #[fail(display = "unable to open device: {}", why)] OpenDevice { why: io::Error },
+    #[fail(display = "unable to create new geometry: {}", why)] CreateGeometry { why: io::Error },
+    #[fail(display = "unable to create new disk: {}", why)] CreateDisk { why: io::Error },
+    #[fail(display = "unable to create new partition: {}", why)] CreatePartition { why: io::Error },
+    #[fail(display = "unable to get exact constraint from geometry")] ExactConstraint,
+    #[fail(display = "unable to add partition to disk: {}", why)] AddPartition { why: io::Error },
+    #[fail(display = "unable to commit changes to disk: {}", why)] CommitChanges { why: io::Error },
 }
 
 // TODO: Figure out how to create an 'Unformatted' partition.
@@ -50,8 +44,7 @@ fn create_partition(device: &str, start: u64, length: u64) -> Result<(), PartedE
     let dev = Device::new(&device).map_err(|why| PartedError::OpenDevice { why })?;
     let geometry = Geometry::new(&dev, start as i64, length as i64)
         .map_err(|why| PartedError::CreateGeometry { why })?;
-    let mut disk = Disk::new(dev)
-        .map_err(|why| PartedError::CreateDisk { why })?;
+    let mut disk = Disk::new(dev).map_err(|why| PartedError::CreateDisk { why })?;
 
     // Create an unformatted file system type.
     let fs_type = FileSystemType::from_raw(ptr::null_mut());

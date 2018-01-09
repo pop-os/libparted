@@ -21,12 +21,12 @@ fn main() {
 
     match device.get_minimum_alignment() {
         Some(alignment) => println!("minimum: {} {}", alignment.offset(), alignment.grain_size()),
-        None            => println!("minimum: - -")
+        None => println!("minimum: - -"),
     }
 
     match device.get_optimum_alignment() {
         Some(alignment) => println!("optimum: {} {}", alignment.offset(), alignment.grain_size()),
-        None            => println!("optimum: - -")
+        None => println!("optimum: - -"),
     }
 
     let disk = match Disk::new(device) {
@@ -38,9 +38,16 @@ fn main() {
     };
 
     match disk.get_partition_alignment() {
-        Ok(alignment) => println!("partition alignment: {} {}", alignment.offset(), alignment.grain_size()),
+        Ok(alignment) => println!(
+            "partition alignment: {} {}",
+            alignment.offset(),
+            alignment.grain_size()
+        ),
         Err(why) => {
-            eprintln!("unable to get disk partition alignment from {}: {}", args[1], why);
+            eprintln!(
+                "unable to get disk partition alignment from {}: {}",
+                args[1], why
+            );
             exit(1);
         }
     }
