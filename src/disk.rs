@@ -173,7 +173,7 @@ impl<'a> Disk<'a> {
     /// special requirements on the start and end of partitions. Therefore, having an overly
     /// strict constraint will probably mean that this function will fail (in which case `part`
     /// will be left unmodified) `part` is assigned a number (`part.num`) in this process.
-    pub fn add_partition(&self, part: &Partition, constraint: &Constraint) -> Result<()> {
+    pub fn add_partition(&mut self, part: &mut Partition, constraint: &Constraint) -> Result<()> {
         cvt(unsafe { ped_disk_add_partition(self.disk, part.part, constraint.constraint) })?;
         Ok(())
     }
