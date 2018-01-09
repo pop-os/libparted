@@ -3,6 +3,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::str;
 use super::{cvt, Device, Disk, FileSystemType};
 
 use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
@@ -53,7 +54,7 @@ impl<'a> Partition<'a> {
         unsafe { (*self.part).num }
     }
 
-    pub fn fs_type_name(&'a self) -> Option<&[u8]> {
+    pub fn fs_type_name(&'a self) -> Option<&str> {
         unsafe {
             let fs_type = (*self.part).fs_type;
             if fs_type.is_null() {
@@ -63,7 +64,7 @@ impl<'a> Partition<'a> {
                 if fs_name.is_null() {
                     None
                 } else {
-                    Some(CStr::from_ptr(fs_name).to_bytes())
+                    Some(str::from_utf8_unchecked(CStr::from_ptr(fs_name).to_bytes()))
                 }
             }
         }
@@ -202,8 +203,11 @@ impl<'a> Partition<'a> {
     }
 
     /// Returns a name that seems mildly appropriate for a partition type `type`.
-    pub fn type_get_name(&self) -> &[u8] {
-        unsafe { CStr::from_ptr(ped_partition_type_get_name((*self.part).type_)).to_bytes() }
+    pub fn type_get_name(&self) -> &str {
+        unsafe {
+            let cstr = CStr::from_ptr(ped_partition_type_get_name((*self.part).type_));
+            str::from_utf8_unchecked(cstr.to_bytes())
+        }
     }
 }
 

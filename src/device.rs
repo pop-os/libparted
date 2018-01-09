@@ -94,8 +94,8 @@ impl<'a> Device<'a> {
         DeviceIter(ptr::null_mut(), PhantomData)
     }
 
-    /// Attempts to get the device of the given `path`, then attempts to open that device.
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Device<'a>> {
+    /// Obtains a handle to the device, but does not open it.
+    pub fn get<P: AsRef<Path>>(path: P) -> Result<Device<'a>> {
         // Convert the supplied path into a C-compatible string.
         let os_str = path.as_ref().as_os_str();
         let cstr = CString::new(os_str.as_bytes())
@@ -103,8 +103,19 @@ impl<'a> Device<'a> {
 
         // Then attempt to get the device, and open it before returning it.
         let device = cvt(unsafe { ped_device_get(cstr.as_ptr()) })?;
-        cvt(unsafe { ped_device_open(device) })?;
         Ok(Device::new_(device))
+    }
+
+    /// Attempts to open the device.
+    pub fn open(&mut self) -> Result<()> {
+        cvt(unsafe { ped_device_open(self.device) }).map(|_| ())
+    }
+
+    /// Attempts to get the device of the given `path`, then attempts to open that device.
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Device<'a>> {
+        let mut device = Device::get(path)?;
+        device.open()?;
+        Ok(device)
     }
 
     pub unsafe fn from_ped_device(device: *mut PedDevice) -> Device<'a> {
@@ -351,7 +362,9 @@ impl<'a> Iterator for DeviceIter<'a> {
 impl<'a> Drop for Device<'a> {
     fn drop(&mut self) {
         unsafe {
-            ped_device_close(self.device);
+            if self.open_count() > 0 {
+                ped_device_close(self.device);
+            }
         }
     }
 }
