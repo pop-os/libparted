@@ -8,3 +8,5 @@ libparted-sys = { git = "https://github.com/system76/libparted-sys.git" }
 
 [dev-dependencies]
 libc = "*"
+failure = "0.1"
+failure_derive = "0.1"
