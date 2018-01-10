@@ -3,6 +3,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::ptr;
 use std::str;
 use super::{cvt, Device, Disk, FileSystemType};
 
@@ -10,7 +11,7 @@ use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
                     ped_partition_is_flag_available, ped_partition_new, ped_partition_set_flag,
                     ped_partition_set_name, ped_partition_set_system, ped_partition_type_get_name,
-                    PedPartition};
+                    PedFileSystemType, PedPartition};
 
 pub use libparted_sys::PedPartitionFlag as PartitionFlag;
 pub use libparted_sys::PedPartitionType as PartitionType;
@@ -42,11 +43,12 @@ impl<'a> Partition<'a> {
     pub fn new(
         disk: &Disk,
         type_: PartitionType,
-        fs_type: &FileSystemType,
+        fs_type: Option<&FileSystemType>,
         start: i64,
         end: i64,
     ) -> io::Result<Partition<'a>> {
-        cvt(unsafe { ped_partition_new(disk.disk, type_, fs_type.fs, start, end) })
+        let fs_type = fs_type.map_or(ptr::null_mut() as *mut PedFileSystemType, |f| f.fs);
+        cvt(unsafe { ped_partition_new(disk.disk, type_, fs_type, start, end) })
             .map(|partition| unsafe { Partition::from_ped_partition(partition) })
     }
 

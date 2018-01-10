@@ -188,15 +188,13 @@ impl<'a> Device<'a> {
         let total_size = self.sector_size() as usize * sectors as usize;
 
         // Ensure that the data will fit within the region of sectors.
-        assert!(buffer.len() <= total_size);
+        debug_assert!(buffer.len() <= total_size);
 
         // Write as much data as needed to fill the entire sector, writing
         // zeros in the unused space, and obtaining a pointer to the buffer.
         let mut sector_buffer: Vec<u8> = Vec::with_capacity(total_size);
-        sector_buffer.copy_from_slice(buffer);
-        for index in buffer.len()..total_size {
-            sector_buffer[index] = b'0';
-        }
+        sector_buffer.extend_from_slice(buffer);
+        sector_buffer.extend((buffer.len()..total_size).map(|_| b'0'));
         let sector_ptr = sector_buffer.as_slice().as_ptr() as *const c_void;
 
         // Then attempt to write the data to the device.

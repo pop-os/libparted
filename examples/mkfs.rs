@@ -67,7 +67,7 @@ fn create_partition_with_filesystem(
     let mut partition = match Partition::new(
         &mut disk,
         part_type,
-        &fs_type,
+        Some(&fs_type),
         geometry.start(),
         geometry.length(),
     ) {

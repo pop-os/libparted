@@ -8,7 +8,7 @@ use std::ptr;
 fn create_and_append<'a>(
     disk: &mut Disk,
     ptype: PartitionType,
-    ftype: &FileSystemType,
+    ftype: Option<&FileSystemType>,
     constraint: &Constraint,
     start: i64,
     end: i64,
@@ -58,7 +58,7 @@ fn main() {
     let _first_part = create_and_append(
         &mut disk,
         PartitionType::PED_PARTITION_EXTENDED,
-        &FileSystemType::from_raw(ptr::null_mut()),
+        None,
         &constraint,
         32,
         29311,
@@ -67,7 +67,7 @@ fn main() {
     let _second_part = create_and_append(
         &mut disk,
         PartitionType::PED_PARTITION_LOGICAL,
-        &FileSystemType::get("ext2").unwrap(),
+        Some(&FileSystemType::get("ext2").unwrap()),
         &constraint,
         19584,
         29311,
@@ -76,7 +76,7 @@ fn main() {
     let _third_part = create_and_append(
         &mut disk,
         PartitionType::PED_PARTITION_LOGICAL,
-        &FileSystemType::get("ext2").unwrap(),
+        Some(&FileSystemType::get("ext2").unwrap()),
         &constraint,
         2048,
         9727,

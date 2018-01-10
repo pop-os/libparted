@@ -229,10 +229,8 @@ impl<'a> Geometry<'a> {
         let total_size = sector_size * count as usize;
         if buffer.len() != total_size {
             let mut new_buffer = Vec::with_capacity(total_size);
-            new_buffer.copy_from_slice(buffer);
-            for index in buffer.len()..total_size {
-                new_buffer[index] = b'0';
-            }
+            new_buffer.extend_from_slice(buffer);
+            new_buffer.extend((buffer.len()..total_size).map(|_| b'0'));
             let buffer_ptr = new_buffer.as_slice().as_ptr() as *const c_void;
             cvt(unsafe { ped_geometry_write(self.geometry, buffer_ptr, offset, count) }).map(|_| ())
         } else {

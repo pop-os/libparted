@@ -74,16 +74,14 @@ fn create_partition(device: &str, start: u64, length: Unit) -> Result<(), Parted
     let mut disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
 
     // Create an unformatted file system type.
-    // let fs_type = FileSystemType::from_raw(ptr::null_mut());
-    let fs_type = FileSystemType::get("ext4").ok_or(PartedError::InvalidFileSystemType)?;
-    eprintln!("Found {}", fs_type.name());
+    let fs_type = None;
     let part_type = PartitionType::PED_PARTITION_NORMAL;
 
     // Create a new partition from the disk, geometry, and the type.
     let mut partition = Partition::new(
         &mut disk,
         part_type,
-        &fs_type,
+        fs_type.as_ref(),
         geometry.start(),
         geometry.length(),
     ).map_err(|why| PartedError::CreatePartition { why })?;
