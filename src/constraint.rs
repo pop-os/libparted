@@ -121,7 +121,7 @@ impl<'a> Constraint<'a> {
     }
 
     /// Duplicates a constraint, if possible.
-    pub fn duplicate(&self) -> io::Result<Constraint> {
+    pub fn duplicate<'b>(&self) -> io::Result<Constraint<'b>> {
         cvt(unsafe { ped_constraint_duplicate(self.constraint) })
             .map(|constraint| Constraint::new_(constraint, ConstraintSource::New))
     }

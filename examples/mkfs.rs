@@ -30,7 +30,7 @@ fn create_partition_with_filesystem(
     start: u64,
     length: u64,
 ) -> Result<(), ()> {
-    let dev = match Device::new(&device) {
+    let mut dev = match Device::new(&device) {
         Ok(device) => device,
         Err(why) => {
             eprintln!("mkfs: unable to open {} device: {}", device, why);
@@ -46,7 +46,7 @@ fn create_partition_with_filesystem(
         }
     };
 
-    let mut disk = match Disk::new(dev) {
+    let mut disk = match Disk::new(&mut dev) {
         Ok(disk) => disk,
         Err(why) => {
             eprintln!("mkfs: unable to open {} disk: {}", device, why);

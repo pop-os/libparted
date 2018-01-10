@@ -63,7 +63,7 @@ impl<'a> Alignment<'a> {
     }
 
     /// Clones and returns a duplicate of the alignment, if possible.
-    pub fn duplicate(&self) -> io::Result<Alignment> {
+    pub fn duplicate<'b>(&self) -> io::Result<Alignment<'b>> {
         cvt(unsafe { ped_alignment_duplicate(self.alignment) }).map(|alignment| Alignment {
             alignment,
             phantom: PhantomData,

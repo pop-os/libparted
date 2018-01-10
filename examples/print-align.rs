@@ -11,7 +11,7 @@ fn main() {
         exit(1);
     }
 
-    let device = match Device::get(&args[1]) {
+    let mut device = match Device::get(&args[1]) {
         Ok(device) => device,
         Err(why) => {
             eprintln!("unable to get {} device: {}", args[1], why);
@@ -29,7 +29,7 @@ fn main() {
         None => println!("optimum: - -"),
     }
 
-    let disk = match Disk::new(device) {
+    let disk = match Disk::new(&mut device) {
         Ok(disk) => disk,
         Err(why) => {
             eprintln!("unable to open disk from {} device: {}", args[1], why);

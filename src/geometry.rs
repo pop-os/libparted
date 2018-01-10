@@ -82,7 +82,7 @@ impl<'a> Geometry<'a> {
     }
 
     /// Duplicate a `Geometry` object.
-    pub fn duplicate(&self) -> io::Result<Geometry<'a>> {
+    pub fn duplicate<'b>(&self) -> io::Result<Geometry<'b>> {
         cvt(unsafe { ped_geometry_duplicate(self.geometry) }).map(|geometry| Geometry {
             geometry,
             phantom: PhantomData,

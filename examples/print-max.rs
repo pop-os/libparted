@@ -11,7 +11,15 @@ fn main() {
         exit(1);
     }
 
-    let disk = match Device::get(&args[1]).and_then(Disk::new) {
+    let mut dev = match Device::get(&args[1]) {
+        Ok(dev) => dev,
+        Err(why) => {
+            eprintln!("unable to get {} device: {}", args[1], why);
+            exit(1);
+        }
+    };
+
+    let disk = match Disk::new(&mut dev) {
         Ok(disk) => disk,
         Err(why) => {
             eprintln!("unable to get {} disk: {}", args[1], why);

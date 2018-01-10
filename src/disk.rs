@@ -2,9 +2,11 @@ use std::ffi::{CStr, CString};
 use std::io::Result;
 use std::marker::PhantomData;
 use std::ptr;
-use super::{cvt, get_optional, Alignment, Constraint, Device, Geometry, Partition};
-use libparted_sys::{ped_disk_add_partition, ped_disk_check as check, ped_disk_clobber,
-                    ped_disk_commit as commit, ped_disk_commit_to_dev as commit_to_dev,
+use super::{cvt, get_optional, Alignment, Constraint, ConstraintSource, Device, Geometry,
+            Partition};
+use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check as check,
+                    ped_disk_clobber, ped_disk_commit as commit,
+                    ped_disk_commit_to_dev as commit_to_dev,
                     ped_disk_commit_to_os as commit_to_os, ped_disk_delete_all as delete_all,
                     ped_disk_delete_partition, ped_disk_destroy, ped_disk_duplicate,
                     ped_disk_extended_partition, ped_disk_get_flag,
@@ -96,7 +98,7 @@ impl<'a> Disk<'a> {
     ///
     /// **Warning**: May modify the supplied `device` if the partition table indicates that the
     /// existing values are incorrect.
-    pub fn new(device: Device) -> Result<Disk<'a>> {
+    pub fn new(device: &'a mut Device) -> Result<Disk<'a>> {
         let disk = cvt(unsafe { ped_disk_new(device.ped_device()) })?;
         Ok(Disk {
             disk,
@@ -108,7 +110,7 @@ impl<'a> Disk<'a> {
     ///
     /// The new partition table is only created in-memory, and nothing is written to disk until
     /// `disk.commit_to_dev()` is called.
-    pub fn new_fresh(device: Device, type_: DiskType) -> Result<Disk<'a>> {
+    pub fn new_fresh(device: &'a mut Device, type_: DiskType) -> Result<Disk<'a>> {
         cvt(unsafe { ped_disk_new_fresh(device.ped_device(), type_.type_) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,
@@ -118,6 +120,22 @@ impl<'a> Disk<'a> {
     /// Obtains the inner device from the disk.
     pub fn get_device<'b>(&'b self) -> Device<'b> {
         unsafe { Device::from_ped_device((*self.disk).dev) }
+    }
+
+    /// Obtains the constraint of the inner device.
+    pub fn constraint_any<'b>(&self) -> Option<Constraint<'b>> {
+        unsafe {
+            let constraint = ped_constraint_any((*self.disk).dev);
+            if constraint.is_null() {
+                None
+            } else {
+                Some(Constraint {
+                    constraint,
+                    source: ConstraintSource::New,
+                    phantom: PhantomData,
+                })
+            }
+        }
     }
 
     /// Obtains the inner device from the disk, with mutable access.
@@ -263,7 +281,7 @@ impl<'a> Disk<'a> {
     }
 
     // Clones the disk object, returning a deep copy if it suceeds.
-    pub fn duplicate(&mut self) -> Result<Disk> {
+    pub fn duplicate<'b>(&mut self) -> Result<Disk<'b>> {
         cvt(unsafe { ped_disk_duplicate(self.disk) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,

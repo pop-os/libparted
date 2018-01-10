@@ -9,7 +9,7 @@ use std::str;
 
 fn list() -> Result<()> {
     for (dev_i, device_res) in Device::devices(true).enumerate() {
-        let device = device_res?;
+        let mut device = device_res?;
         let hw_geom = device.hw_geom();
         let bios_geom = device.bios_geom();
 
@@ -37,7 +37,7 @@ fn list() -> Result<()> {
         println!("    Host:          {}", device.host());
         println!("    Did:           {}", device.did());
 
-        let disk = Disk::new(device)?;
+        let disk = Disk::new(&mut device)?;
         eprintln!(
             "    Disk Type: {:?}",
             disk.get_disk_type_name().map(str::from_utf8)

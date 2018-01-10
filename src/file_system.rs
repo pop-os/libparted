@@ -2,6 +2,7 @@ use std::ffi::{CStr, CString};
 use std::io;
 use std::marker::PhantomData;
 use std::ptr;
+use std::str;
 use super::{cvt, get_optional, Geometry, Timer};
 use libparted_sys::{ped_file_system_alias_get_next, ped_file_system_alias_register,
                     ped_file_system_alias_unregister, ped_file_system_resize,
@@ -151,8 +152,8 @@ impl<'a> FileSystemType<'a> {
         FileSystemTypeIter(self, ptr::null_mut())
     }
 
-    pub fn name(&self) -> &[u8] {
-        unsafe { CStr::from_ptr((*self.fs).name).to_bytes() }
+    pub fn name(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(CStr::from_ptr((*self.fs).name).to_bytes()) }
     }
 
     // TODO: fn ops()
@@ -211,7 +212,7 @@ impl<'a> Iterator for FileSystemTypeIter<'a> {
     type Item = FileSystemType<'a>;
     fn next(&mut self) -> Option<FileSystemType<'a>> {
         let fs = unsafe { ped_file_system_type_get_next((self.0).fs) };
-        if fs.is_null() {
+        if fs.is_null() || fs != self.1 {
             None
         } else {
             self.1 = fs;
