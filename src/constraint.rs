@@ -143,12 +143,7 @@ impl<'a> Constraint<'a> {
     /// There might be more than one solution. This function makes no guarantees about which
     /// solutions it will choose in this case.
     pub fn solve_max(&self) -> Option<Geometry<'a>> {
-        get_optional(unsafe { ped_constraint_solve_max(self.constraint) }).map(|geometry| {
-            Geometry {
-                geometry,
-                phantom: PhantomData,
-            }
-        })
+        get_optional(unsafe { ped_constraint_solve_max(self.constraint) }).map(Geometry::from_raw)
     }
 
     /// Return the nearest region to `geom` that satisfies the constraint.
@@ -159,10 +154,7 @@ impl<'a> Constraint<'a> {
     /// about how this ambiguity is resolved.
     pub fn solve_nearest(&self, geom: &Geometry) -> Option<Geometry<'a>> {
         get_optional(unsafe { ped_constraint_solve_nearest(self.constraint, geom.geometry) }).map(
-            |geometry| Geometry {
-                geometry,
-                phantom: PhantomData,
-            },
+            Geometry::from_raw
         )
     }
 }

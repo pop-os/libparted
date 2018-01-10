@@ -5,17 +5,18 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::ptr;
 use std::str;
-use super::{cvt, Device, Disk, FileSystemType};
+use super::{cvt, Device, Disk, FileSystemType, Geometry};
 
 use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
                     ped_partition_is_flag_available, ped_partition_new, ped_partition_set_flag,
                     ped_partition_set_name, ped_partition_set_system, ped_partition_type_get_name,
-                    PedFileSystemType, PedPartition};
+                    PedFileSystemType, PedPartition, PedGeometry};
 
 pub use libparted_sys::PedPartitionFlag as PartitionFlag;
 pub use libparted_sys::PedPartitionType as PartitionType;
 
+#[derive(PartialEq)]
 pub struct Partition<'a> {
     pub(crate) part: *mut PedPartition,
     pub(crate) phantom: PhantomData<&'a PedPartition>,
@@ -80,6 +81,14 @@ impl<'a> Partition<'a> {
         unsafe { Device::from_ped_device((*self.part).geom.dev) }
     }
 
+    pub fn get_geom<'b>(&mut self) -> Geometry<'b> {
+        unsafe {
+            let mut geom = Geometry::from_raw(&mut (*self.part).geom as *mut PedGeometry);
+            geom.is_droppable = false;
+            geom
+        }
+    }
+
     pub fn geom_start(&'a self) -> i64 {
         unsafe { (*self.part).geom.start }
     }
@@ -131,14 +140,14 @@ impl<'a> Partition<'a> {
     }
 
     /// Returns the name of a partition `part`. This will only work if the disk label supports it.
-    pub fn name(&self) -> Option<&[u8]> {
+    pub fn name(&self) -> Option<&str> {
         if self.is_active() {
             unsafe {
                 let name = ped_partition_get_name(self.part);
                 if name.is_null() {
                     None
                 } else {
-                    Some(CStr::from_ptr(name).to_bytes())
+                    str::from_utf8(CStr::from_ptr(name).to_bytes()).ok()
                 }
             }
         } else {

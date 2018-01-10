@@ -14,6 +14,7 @@ use libparted_sys::{ped_constraint_exact, ped_file_system_open, ped_file_system_
 pub struct Geometry<'a> {
     pub(crate) geometry: *mut PedGeometry,
     pub(crate) phantom: PhantomData<&'a PedGeometry>,
+    pub(crate) is_droppable: bool
 }
 
 impl<'a> Geometry<'a> {
@@ -21,6 +22,7 @@ impl<'a> Geometry<'a> {
         Geometry {
             geometry,
             phantom: PhantomData,
+            is_droppable: true
         }
     }
 
@@ -83,10 +85,7 @@ impl<'a> Geometry<'a> {
 
     /// Duplicate a `Geometry` object.
     pub fn duplicate<'b>(&self) -> io::Result<Geometry<'b>> {
-        cvt(unsafe { ped_geometry_duplicate(self.geometry) }).map(|geometry| Geometry {
-            geometry,
-            phantom: PhantomData,
-        })
+        cvt(unsafe { ped_geometry_duplicate(self.geometry) }).map(Geometry::from_raw)
     }
 
     pub fn end(&self) -> i64 {
@@ -103,10 +102,7 @@ impl<'a> Geometry<'a> {
     /// **Geometry**.
     pub fn intersect(&self, other: &Geometry) -> Option<Geometry<'a>> {
         get_optional(unsafe { ped_geometry_intersect(self.geometry, other.geometry) }).map(
-            |geometry| Geometry {
-                geometry,
-                phantom: PhantomData,
-            },
+            Geometry::from_raw
         )
     }
 
@@ -139,12 +135,7 @@ impl<'a> Geometry<'a> {
     /// Create a new **Geometry** object on `disk`, starting at `start`
     /// with a size of `length` sectors.
     pub fn new(device: &Device, start: i64, length: i64) -> io::Result<Geometry<'a>> {
-        cvt(unsafe { ped_geometry_new(device.ped_device(), start, length) }).map(|geometry| {
-            Geometry {
-                geometry,
-                phantom: PhantomData,
-            }
-        })
+        cvt(unsafe { ped_geometry_new(device.ped_device(), start, length) }).map(Geometry::from_raw)
     }
 
     /// Reads data from the region within our `Geometry`. `offset` is the location from within
@@ -222,6 +213,12 @@ impl<'a> Geometry<'a> {
         unsafe { ped_geometry_test_inside(self.geometry, other.geometry) == 1 }
     }
 
+    /// Tests if `sector` is inside the geometry.
+    pub fn test_sector_inside(&self, sector: i64) -> bool {
+        debug_assert!(!self.geometry.is_null());
+        sector >= self.start() && sector <= self.end()
+    }
+
     /// Writes data into the region represented by `self`. The `offset` is the location
     /// from within the region, not from the start of the disk. `count` sectors are to be written.
     pub fn write_to_sectors(&mut self, buffer: &[u8], offset: i64, count: i64) -> io::Result<()> {
@@ -273,16 +270,15 @@ impl<'a> Geometry<'a> {
     /// Attempt to find a file system and return the region it occupies.
     pub fn probe_specific_fs<'b>(&'b self, fs_type: &'b FileSystemType) -> Option<Geometry<'b>> {
         get_optional(unsafe { ped_file_system_probe_specific(fs_type.fs, self.geometry) }).map(
-            |geometry| Geometry {
-                geometry,
-                phantom: PhantomData,
-            },
+            Geometry::from_raw
         )
     }
 }
 
 impl<'a> Drop for Geometry<'a> {
     fn drop(&mut self) {
-        unsafe { ped_geometry_destroy(self.geometry) }
+        if self.is_droppable {
+            unsafe { ped_geometry_destroy(self.geometry) }
+        }
     }
 }

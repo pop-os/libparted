@@ -18,11 +18,12 @@ use libparted_sys::{ped_constraint_any, ped_device_begin_external_access, ped_de
 pub use libparted_sys::PedDeviceType as DeviceType;
 pub use libparted_sys::_PedCHSGeometry as CHSGeometry;
 
-use super::{cvt, Alignment, Constraint, ConstraintSource, DiskType};
+use super::{cvt, Alignment, Constraint, ConstraintSource, DiskType, Geometry};
 
 pub struct Device<'a> {
     pub(crate) device: *mut PedDevice,
     pub(crate) phantom: PhantomData<&'a PedDevice>,
+    pub(crate) is_droppable: bool,
 }
 
 pub struct DeviceIter<'a>(*mut PedDevice, PhantomData<&'a PedDevice>);
@@ -50,6 +51,7 @@ impl<'a> Device<'a> {
         Device {
             device,
             phantom: PhantomData,
+            is_droppable: true,
         }
     }
 
@@ -124,20 +126,6 @@ impl<'a> Device<'a> {
 
     pub unsafe fn ped_device(&self) -> *mut PedDevice {
         self.device
-    }
-
-    /// Return a constraint that any region on the given device will satisfy.
-    pub fn constraint_any<'b>(&'b self) -> Option<Constraint<'b>> {
-        let constraint = unsafe { ped_constraint_any(self.device) };
-        if constraint.is_null() {
-            None
-        } else {
-            Some(Constraint {
-                constraint,
-                source: ConstraintSource::New,
-                phantom: PhantomData,
-            })
-        }
     }
 
     /// Begins external access mode.
@@ -216,7 +204,7 @@ impl<'a> Device<'a> {
     /// When you want a constraint with alignment info, use the following methods:
     /// - `Device::get_minimal_aligned_constraint()`
     /// - `Device::get_optimal_aligned_constraint()`
-    pub fn get_constraint(&self) -> Result<Constraint<'a>> {
+    pub fn get_constraint<'b>(&self) -> Result<Constraint<'b>> {
         Ok(Constraint {
             constraint: cvt(unsafe { ped_device_get_constraint(self.device) })?,
             source: ConstraintSource::New,
@@ -224,11 +212,34 @@ impl<'a> Device<'a> {
         })
     }
 
+    /// Return a constraint that any region on the given device will satisfy.
+    pub fn constraint_any<'b>(&self) -> Option<Constraint<'b>> {
+        let constraint = unsafe { ped_constraint_any(self.device) };
+        if constraint.is_null() {
+            None
+        } else {
+            Some(Constraint {
+                constraint,
+                source: ConstraintSource::New,
+                phantom: PhantomData,
+            })
+        }
+    }
+
+    pub fn constraint_from_start_end<'b>(
+        &self,
+        range_start: &Geometry,
+        range_end: &Geometry
+    ) -> Result<Constraint<'b>> {
+        let alignment_any = Alignment::new(0, 1).unwrap();
+        Constraint::new(&alignment_any, &alignment_any, range_start, range_end, 1, self.length() as i64)
+    }
+
     /// Get a constraint that represents hardware requirements on geometry and alignment.
     ///
     /// This function will return a constraint representing the limits imposed by the size of
     /// the disk and the minimal alignment requirements for proper performance of the disk.
-    pub fn get_minimal_aligned_constraint<'b>(&'b self) -> Result<Constraint<'b>> {
+    pub fn get_minimal_aligned_constraint<'b>(&self) -> Result<Constraint<'b>> {
         Ok(Constraint {
             constraint: cvt(unsafe { ped_device_get_minimal_aligned_constraint(self.device) })?,
             source: ConstraintSource::New,
@@ -240,12 +251,12 @@ impl<'a> Device<'a> {
     ///
     /// This function will return a constraint representing the limits imposed by the size of
     /// the disk and the alignment requirements for optimal performance of the disk.
-    pub fn get_optimal_aligned_constraint<'b>(&'b self) -> Constraint<'b> {
-        Constraint {
-            constraint: unsafe { ped_device_get_optimal_aligned_constraint(self.device) },
+    pub fn get_optimal_aligned_constraint<'b>(&self) -> Result<Constraint<'b>> {
+        Ok(Constraint {
+            constraint: cvt(unsafe { ped_device_get_optimal_aligned_constraint(self.device) })?,
             source: ConstraintSource::New,
             phantom: PhantomData,
-        }
+        })
     }
 
     /// Get an alignment that represents minimum hardware requirements on alignment.
@@ -258,7 +269,7 @@ impl<'a> Device<'a> {
     /// The returned alignment describes the alignment for the start sector of the partition.
     /// The end sector should be aligned too. To get the end sector alignment, decrease the
     /// returned alignment's offset by 1.
-    pub fn get_minimum_alignment<'b>(&'b self) -> Option<Alignment<'b>> {
+    pub fn get_minimum_alignment<'b>(&self) -> Option<Alignment<'b>> {
         let alignment = unsafe { ped_device_get_minimum_alignment(self.device) };
         if alignment.is_null() {
             None
@@ -275,7 +286,7 @@ impl<'a> Device<'a> {
     /// The returned alignment describes the alignment for the start sector of the partition.
     /// The end sector should be aligned too. To get the end alignment, decrease the returned
     /// alignment's offset by 1.
-    pub fn get_optimum_alignment<'b>(&'b self) -> Option<Alignment<'b>> {
+    pub fn get_optimum_alignment<'b>(&self) -> Option<Alignment<'b>> {
         let alignment = unsafe { ped_device_get_optimum_alignment(self.device) };
         if alignment.is_null() {
             None
@@ -360,7 +371,7 @@ impl<'a> Iterator for DeviceIter<'a> {
 impl<'a> Drop for Device<'a> {
     fn drop(&mut self) {
         unsafe {
-            if self.open_count() > 0 {
+            if self.open_count() > 0 && self.is_droppable {
                 ped_device_close(self.device);
             }
         }

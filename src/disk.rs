@@ -3,7 +3,7 @@ use std::io::Result;
 use std::marker::PhantomData;
 use std::ptr;
 use super::{cvt, get_optional, Alignment, Constraint, ConstraintSource, Device, Geometry,
-            Partition};
+            Partition, snap, prefer_snap, MOVE_DOWN, MOVE_STILL, MOVE_UP, SECT_START, SECT_END};
 use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check as check,
                     ped_disk_clobber, ped_disk_commit as commit,
                     ped_disk_commit_to_dev as commit_to_dev,
@@ -21,7 +21,7 @@ use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check a
                     ped_disk_remove_partition, ped_disk_set_partition_geom,
                     ped_disk_type_check_feature, ped_disk_type_get, ped_disk_type_get_next,
                     ped_disk_type_register, ped_disk_type_unregister, PedDisk, PedDiskType,
-                    PedPartition};
+                    ped_disk_set_flag, PedPartition};
 
 pub use libparted_sys::_PedDiskFlag as DiskFlag;
 pub use libparted_sys::_PedDiskTypeFeature as DiskTypeFeature;
@@ -118,8 +118,10 @@ impl<'a> Disk<'a> {
     }
 
     /// Obtains the inner device from the disk.
-    pub fn get_device<'b>(&'b self) -> Device<'b> {
-        unsafe { Device::from_ped_device((*self.disk).dev) }
+    pub unsafe fn get_device<'b>(&self) -> Device<'b> {
+        let mut device = Device::from_ped_device((*self.disk).dev);
+        device.is_droppable = false;
+        device
     }
 
     /// Obtains the constraint of the inner device.
@@ -231,10 +233,7 @@ impl<'a> Disk<'a> {
     ) -> Result<Geometry<'a>> {
         cvt(unsafe {
             ped_disk_get_max_partition_geometry(self.disk, part.part, constraint.constraint)
-        }).map(|geometry| Geometry {
-            geometry,
-            phantom: PhantomData,
-        })
+        }).map(Geometry::from_raw)
     }
 
     disk_fn_mut!(
@@ -373,6 +372,21 @@ impl<'a> Disk<'a> {
         cvt(unsafe { ped_disk_remove_partition(self.disk, part.part) }).map(|_| ())
     }
 
+    /// Set the state of a flag on a disk.
+    ///
+    /// # Note
+    ///
+    /// It is an error to call tis on an unavailable flag. Use `disk.is_flag_available()`
+    /// to determine whhich flags are available for a given disk label.
+    ///
+    /// # Throws
+    ///
+    /// Throws `PED_EXCEPTION_ERROR` if the requested flag is not available for this label.
+    pub fn set_flag(&mut self, flag: DiskFlag, state: bool) -> bool {
+        let state = if state { 1 } else { 0 };
+        unsafe { ped_disk_set_flag(self.disk, flag, state) != 0 }
+    }
+
     /// Sets the geometry of `part` (IE: change a partition's location).
     ///
     /// This can fail for many reasons, such as overlapping with other partitions.
@@ -387,6 +401,110 @@ impl<'a> Disk<'a> {
         cvt(unsafe {
             ped_disk_set_partition_geom(self.disk, part.part, constraint.constraint, start, end)
         }).map(|_| ())
+    }
+
+    pub fn snap_to_boundaries(
+        &self,
+        new_geom: &mut Geometry,
+        old_geom: Option<&Geometry>,
+        start_range: &Geometry,
+        end_range: &Geometry
+    ) {
+        let (mut start_dist, mut end_dist) = (-1, -1);
+        let mut start = new_geom.start();
+        let mut end = new_geom.end();
+        
+        let start_part = match self.get_partition_by_sector(start) {
+            Some(part) => part,
+            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) }
+        };
+
+        let end_part = match self.get_partition_by_sector(end) {
+            Some(part) => part,
+            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) }
+        };
+
+        let adjacent = start_part.geom_end() + 1 == end_part.geom_start();
+        let mut start_allow = MOVE_STILL | MOVE_UP | MOVE_DOWN;
+        let mut end_allow = start_allow;
+
+        if let Some(old_geom) = old_geom {
+            if snap(&mut start, old_geom.start(), start_range) {
+                start_allow = MOVE_STILL;
+            }
+
+            if snap(&mut end, old_geom.end(), end_range) {
+                end_allow = MOVE_STILL;
+            }
+        }
+
+        if start_part == end_part {
+            start_allow &= !MOVE_UP;
+            end_allow &= !MOVE_DOWN;
+        }
+
+        let mut start_want = prefer_snap(
+            start,
+            SECT_START,
+            start_range,
+            &mut start_allow,
+            &start_part,
+            &mut start_dist
+        );
+
+        let mut end_want = prefer_snap(
+            end,
+            SECT_END,
+            end_range,
+            &mut end_allow,
+            &end_part,
+            &mut end_dist
+        );
+
+        debug_assert!(start_dist >= 0 && end_dist >= 0);
+
+        if adjacent && start_want == MOVE_UP && end_want == MOVE_DOWN {
+            if end_dist < start_dist {
+                start_allow &= !MOVE_UP;
+                start_want = prefer_snap(
+                    start,
+                    SECT_START,
+                    start_range,
+                    &mut start_allow,
+                    &start_part,
+                    &mut start_dist
+                );
+                debug_assert!(start_dist >= 0);
+            } else {
+                end_allow &= !MOVE_DOWN;
+                end_want = prefer_snap(
+                    start,
+                    SECT_END,
+                    end_range,
+                    &mut end_allow,
+                    &end_part,
+                    &mut end_dist
+                );
+                debug_assert!(end_dist >= 0);
+            }
+        }
+
+        start = match start_want {
+            MOVE_DOWN => start_part.geom_start(),
+            MOVE_UP   => start_part.geom_end() + 1,
+            _ => start
+        };
+
+        end = match end_want {
+            MOVE_DOWN => end_part.geom_start() - 1,
+            MOVE_UP   => end_part.geom_end(),
+            _ => end
+        };
+
+        debug_assert!(start_range.test_sector_inside(start));
+        debug_assert!(end_range.test_sector_inside(end));
+        debug_assert!(start <= end);
+        let _ = new_geom.set(start, end - start + 1);
     }
 }
 
