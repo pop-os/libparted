@@ -6,9 +6,9 @@ extern crate libparted;
 use libparted::*;
 use std::io;
 use std::env;
+use std::num::ParseIntError;
 use std::process::exit;
-use std::ptr;
-use std::str;
+use std::str::{self, FromStr};
 
 enum Unit {
     Sectors(u64),
@@ -16,7 +16,34 @@ enum Unit {
     Megabytes(u64),
 }
 
-fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, u64, Unit)> {
+impl Unit {
+    pub fn to_sectors(self, sector_size: u64) -> u64 {
+        match self {
+            Unit::Sectors(sectors) => sectors,
+            Unit::Mebibytes(m) => m * 1000 * 1000 / sector_size,
+            Unit::Megabytes(mb) => mb * 1024 * 1024 / sector_size,
+        }
+    }
+}
+
+impl FromStr for Unit {
+    type Err = ParseIntError;
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        if string.ends_with("MB") {
+            string[..string.len() - 2]
+                .parse::<u64>()
+                .map(Unit::Megabytes)
+        } else if string.ends_with("M") {
+            string[..string.len() - 1]
+                .parse::<u64>()
+                .map(Unit::Mebibytes)
+        } else {
+            string.parse::<u64>().map(Unit::Sectors)
+        }
+    }
+}
+
+fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, Unit, Unit)> {
     fn config_err(msg: &'static str) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidData, msg)
     }
@@ -25,22 +52,11 @@ fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, u6
     let start_str = args.next().ok_or_else(|| config_err("no start provided"))?;
     let length_str = args.next().ok_or_else(|| config_err("no length provided"))?;
     let start = start_str
-        .parse::<u64>()
-        .or_else(|_| Err(config_err("invalid start value")))?;
-
-    let length = if length_str.ends_with("MB") {
-        length_str[..length_str.len() - 2]
-            .parse::<u64>()
-            .map(Unit::Megabytes)
-    } else if length_str.ends_with("M") {
-        length_str[..length_str.len() - 1]
-            .parse::<u64>()
-            .map(Unit::Mebibytes)
-    } else {
-        length_str.parse::<u64>().map(Unit::Sectors)
-    };
-
-    let length = length.map_err(|_| config_err("invalid sector length"))?;
+        .parse::<Unit>()
+        .map_err(|_| config_err("invalid start value"))?;
+    let length = length_str
+        .parse::<Unit>()
+        .map_err(|_| config_err("invalid sector length"))?;
 
     Ok((device, start, length))
 }
@@ -58,16 +74,14 @@ pub enum PartedError {
 }
 
 // TODO: Figure out how to create an 'Unformatted' partition.
-fn create_partition(device: &str, start: u64, length: Unit) -> Result<(), PartedError> {
+fn create_partition(device: &str, start: Unit, length: Unit) -> Result<(), PartedError> {
     // Get and open the device; then use that to get the geometry and disk from the device.
     let mut dev = Device::new(&device).map_err(|why| PartedError::OpenDevice { why })?;
 
-    // Get the sector length of the new partition.
-    let length = match length {
-        Unit::Sectors(sectors) => sectors,
-        Unit::Mebibytes(m) => m * 1000 * 1000 / dev.sector_size(),
-        Unit::Megabytes(mb) => mb * 1024 * 1024 / dev.sector_size(),
-    };
+    // Get the sector start / length of the new partition.
+    let sector_size = dev.sector_size();
+    let start = start.to_sectors(sector_size);
+    let length = length.to_sectors(sector_size);
 
     let geometry = Geometry::new(&dev, start as i64, length as i64)
         .map_err(|why| PartedError::CreateGeometry { why })?;
@@ -83,7 +97,7 @@ fn create_partition(device: &str, start: u64, length: Unit) -> Result<(), Parted
         part_type,
         fs_type.as_ref(),
         geometry.start(),
-        geometry.length(),
+        geometry.start() + geometry.length(),
     ).map_err(|why| PartedError::CreatePartition { why })?;
 
     if partition.is_flag_available(PartitionFlag::PED_PARTITION_LBA) {
@@ -112,7 +126,8 @@ fn main() {
         Ok(config) => config,
         Err(why) => {
             eprintln!("mkpart error: {}", why);
-            eprintln!("\tUsage: mkpart <device> <start> <length>");
+            eprintln!("\tUsage: mkpart <device_path> <start_sector> <length_in_sectors>");
+            eprintln!("\t       mkpart <device_path< <start_sector> <length_in_units>[M | MB]");
             exit(1);
         }
     };
