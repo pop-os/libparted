@@ -5,6 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::raw::c_void;
 use std::path::Path;
 use std::ptr;
+use std::str;
 
 use libparted_sys::{ped_constraint_any, ped_device_begin_external_access, ped_device_check,
                     ped_device_close, ped_device_end_external_access, ped_device_get,
@@ -229,10 +230,17 @@ impl<'a> Device<'a> {
     pub fn constraint_from_start_end<'b>(
         &self,
         range_start: &Geometry,
-        range_end: &Geometry
+        range_end: &Geometry,
     ) -> Result<Constraint<'b>> {
         let alignment_any = Alignment::new(0, 1).unwrap();
-        Constraint::new(&alignment_any, &alignment_any, range_start, range_end, 1, self.length() as i64)
+        Constraint::new(
+            &alignment_any,
+            &alignment_any,
+            range_start,
+            range_end,
+            1,
+            self.length() as i64,
+        )
     }
 
     /// Get a constraint that represents hardware requirements on geometry and alignment.
@@ -304,8 +312,8 @@ impl<'a> Device<'a> {
         Ok(())
     }
 
-    pub fn model(&self) -> &[u8] {
-        unsafe { CStr::from_ptr((*self.device).model).to_bytes() }
+    pub fn model(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(CStr::from_ptr((*self.device).model).to_bytes()) }
     }
 
     pub fn path(&self) -> &Path {

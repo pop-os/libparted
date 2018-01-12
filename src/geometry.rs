@@ -14,7 +14,7 @@ use libparted_sys::{ped_constraint_exact, ped_file_system_open, ped_file_system_
 pub struct Geometry<'a> {
     pub(crate) geometry: *mut PedGeometry,
     pub(crate) phantom: PhantomData<&'a PedGeometry>,
-    pub(crate) is_droppable: bool
+    pub(crate) is_droppable: bool,
 }
 
 impl<'a> Geometry<'a> {
@@ -22,7 +22,7 @@ impl<'a> Geometry<'a> {
         Geometry {
             geometry,
             phantom: PhantomData,
-            is_droppable: true
+            is_droppable: true,
         }
     }
 
@@ -101,9 +101,8 @@ impl<'a> Geometry<'a> {
     /// Return a **Geometry** object that refers to the intersection between itself and another
     /// **Geometry**.
     pub fn intersect(&self, other: &Geometry) -> Option<Geometry<'a>> {
-        get_optional(unsafe { ped_geometry_intersect(self.geometry, other.geometry) }).map(
-            Geometry::from_raw
-        )
+        get_optional(unsafe { ped_geometry_intersect(self.geometry, other.geometry) })
+            .map(Geometry::from_raw)
     }
 
     pub fn length(&self) -> i64 {
@@ -269,9 +268,8 @@ impl<'a> Geometry<'a> {
 
     /// Attempt to find a file system and return the region it occupies.
     pub fn probe_specific_fs<'b>(&'b self, fs_type: &'b FileSystemType) -> Option<Geometry<'b>> {
-        get_optional(unsafe { ped_file_system_probe_specific(fs_type.fs, self.geometry) }).map(
-            Geometry::from_raw
-        )
+        get_optional(unsafe { ped_file_system_probe_specific(fs_type.fs, self.geometry) })
+            .map(Geometry::from_raw)
     }
 }
 

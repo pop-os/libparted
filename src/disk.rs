@@ -2,8 +2,9 @@ use std::ffi::{CStr, CString};
 use std::io::Result;
 use std::marker::PhantomData;
 use std::ptr;
-use super::{cvt, get_optional, Alignment, Constraint, ConstraintSource, Device, Geometry,
-            Partition, snap, prefer_snap, MOVE_DOWN, MOVE_STILL, MOVE_UP, SECT_START, SECT_END};
+use std::str;
+use super::{cvt, get_optional, prefer_snap, snap, Alignment, Constraint, ConstraintSource, Device,
+            Geometry, Partition, MOVE_DOWN, MOVE_STILL, MOVE_UP, SECT_END, SECT_START};
 use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check as check,
                     ped_disk_clobber, ped_disk_commit as commit,
                     ped_disk_commit_to_dev as commit_to_dev,
@@ -18,10 +19,10 @@ use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check a
                     ped_disk_max_partition_length, ped_disk_max_partition_start_sector,
                     ped_disk_maximize_partition, ped_disk_minimize_extended_partition,
                     ped_disk_new, ped_disk_new_fresh, ped_disk_next_partition, ped_disk_print,
-                    ped_disk_remove_partition, ped_disk_set_partition_geom,
+                    ped_disk_remove_partition, ped_disk_set_flag, ped_disk_set_partition_geom,
                     ped_disk_type_check_feature, ped_disk_type_get, ped_disk_type_get_next,
                     ped_disk_type_register, ped_disk_type_unregister, PedDisk, PedDiskType,
-                    ped_disk_set_flag, PedPartition};
+                    PedPartition};
 
 pub use libparted_sys::_PedDiskFlag as DiskFlag;
 pub use libparted_sys::_PedDiskTypeFeature as DiskTypeFeature;
@@ -145,14 +146,15 @@ impl<'a> Disk<'a> {
         unsafe { Device::from_ped_device((*self.disk).dev) }
     }
 
-    pub fn get_disk_type_name<'b>(&'b self) -> Option<&[u8]> {
+    pub fn get_disk_type_name<'b>(&'b self) -> Option<&str> {
         unsafe {
             let type_ = (*self.disk).type_;
             let name = (*type_).name;
             if name.is_null() {
                 None
             } else {
-                Some(CStr::from_ptr(name).to_bytes())
+                let cstr = CStr::from_ptr(name).to_bytes();
+                Some(str::from_utf8_unchecked(cstr))
             }
         }
     }
@@ -408,20 +410,20 @@ impl<'a> Disk<'a> {
         new_geom: &mut Geometry,
         old_geom: Option<&Geometry>,
         start_range: &Geometry,
-        end_range: &Geometry
+        end_range: &Geometry,
     ) {
         let (mut start_dist, mut end_dist) = (-1, -1);
         let mut start = new_geom.start();
         let mut end = new_geom.end();
-        
+
         let start_part = match self.get_partition_by_sector(start) {
             Some(part) => part,
-            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) }
+            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) },
         };
 
         let end_part = match self.get_partition_by_sector(end) {
             Some(part) => part,
-            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) }
+            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) },
         };
 
         let adjacent = start_part.geom_end() + 1 == end_part.geom_start();
@@ -449,7 +451,7 @@ impl<'a> Disk<'a> {
             start_range,
             &mut start_allow,
             &start_part,
-            &mut start_dist
+            &mut start_dist,
         );
 
         let mut end_want = prefer_snap(
@@ -458,7 +460,7 @@ impl<'a> Disk<'a> {
             end_range,
             &mut end_allow,
             &end_part,
-            &mut end_dist
+            &mut end_dist,
         );
 
         debug_assert!(start_dist >= 0 && end_dist >= 0);
@@ -472,7 +474,7 @@ impl<'a> Disk<'a> {
                     start_range,
                     &mut start_allow,
                     &start_part,
-                    &mut start_dist
+                    &mut start_dist,
                 );
                 debug_assert!(start_dist >= 0);
             } else {
@@ -483,7 +485,7 @@ impl<'a> Disk<'a> {
                     end_range,
                     &mut end_allow,
                     &end_part,
-                    &mut end_dist
+                    &mut end_dist,
                 );
                 debug_assert!(end_dist >= 0);
             }
@@ -491,14 +493,14 @@ impl<'a> Disk<'a> {
 
         start = match start_want {
             MOVE_DOWN => start_part.geom_start(),
-            MOVE_UP   => start_part.geom_end() + 1,
-            _ => start
+            MOVE_UP => start_part.geom_end() + 1,
+            _ => start,
         };
 
         end = match end_want {
             MOVE_DOWN => end_part.geom_start() - 1,
-            MOVE_UP   => end_part.geom_end(),
-            _ => end
+            MOVE_UP => end_part.geom_end(),
+            _ => end,
         };
 
         debug_assert!(start_range.test_sector_inside(start));

@@ -48,7 +48,7 @@ pub fn prefer_snap(
     range: &Geometry,
     allow: &mut u8,
     part: &Partition,
-    dist: &mut i64
+    dist: &mut i64,
 ) -> u8 {
     let (mut up_dist, mut down_dist) = (-1i64, -1i64);
     let mut moves;
@@ -59,7 +59,7 @@ pub fn prefer_snap(
         *dist = 0;
         return MOVE_STILL;
     }
-    
+
     if *allow & MOVE_UP != 0 {
         let new_sect = part.geom_end() + 1 + what as i64;
         if range.test_sector_inside(new_sect) {
@@ -68,7 +68,7 @@ pub fn prefer_snap(
             *allow &= !MOVE_UP;
         }
     }
-    
+
     if *allow & MOVE_DOWN != 0 {
         let new_sect = part.geom_start() + what as i64;
         if range.test_sector_inside(new_sect) {

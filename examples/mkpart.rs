@@ -41,13 +41,15 @@ impl FromStr for Unit {
             string[..string.len() - 1]
                 .parse::<u64>()
                 .map(Unit::Megabytes)
-        } else  {
+        } else {
             string.parse::<u64>().map(Unit::Sectors)
         }
     }
 }
 
-fn get_config<I: Iterator<Item = String>>(mut args: I) -> io::Result<(String, Unit, Unit, Option<String>)> {
+fn get_config<I: Iterator<Item = String>>(
+    mut args: I,
+) -> io::Result<(String, Unit, Unit, Option<String>)> {
     fn config_err(msg: &'static str) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidData, msg)
     }
@@ -82,7 +84,12 @@ pub enum PartedError {
 }
 
 // TODO: Figure out how to create an 'Unformatted' partition.
-fn create_partition(device: &str, start: Unit, length: Unit, fs: Option<String>) -> Result<(), PartedError> {
+fn create_partition(
+    device: &str,
+    start: Unit,
+    length: Unit,
+    fs: Option<String>,
+) -> Result<(), PartedError> {
     // Get and open the device; then use that to get the geometry and disk from the device.
     let mut dev = Device::new(&device).map_err(|why| PartedError::OpenDevice { why })?;
 
@@ -92,7 +99,7 @@ fn create_partition(device: &str, start: Unit, length: Unit, fs: Option<String>)
     let length = length.to_sectors(sector_size);
 
     let geometry = Geometry::new(&dev, start as i64, length as i64)
-            .map_err(|why| PartedError::CreateGeometry { why })?;
+        .map_err(|why| PartedError::CreateGeometry { why })?;
 
     {
         let mut disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
@@ -105,8 +112,8 @@ fn create_partition(device: &str, start: Unit, length: Unit, fs: Option<String>)
                     eprintln!("invalid fs provided: {}", fs);
                     exit(1);
                 }
-            }
-            None => None
+            },
+            None => None,
         };
 
         let part_type = PartitionType::PED_PARTITION_NORMAL;
@@ -135,7 +142,7 @@ fn create_partition(device: &str, start: Unit, length: Unit, fs: Option<String>)
     }
 
     if let Err(why) = dev.sync() {
-        return Err(PartedError::SyncErr { why })
+        return Err(PartedError::SyncErr { why });
     }
 
     {
@@ -143,7 +150,9 @@ fn create_partition(device: &str, start: Unit, length: Unit, fs: Option<String>)
         println!("New Partition Scheme:");
         for (part_i, part) in disk.parts().enumerate() {
             let name = part.type_get_name();
-            if name == "metadata" || name == "free" { continue }
+            if name == "metadata" || name == "free" {
+                continue;
+            }
             println!("    Part {}", part_i);
             println!("        Name:   {:?}", name);
             println!("        Type:   {:?}", part.name());
@@ -166,7 +175,9 @@ fn main() {
         Err(why) => {
             eprintln!("mkpart error: {}", why);
             eprintln!("\tUsage: mkpart <device_path> <start_sector> <length_in_sectors> [<fs>]");
-            eprintln!("\t       mkpart <device_path< <start_sector> <length_in_units>[M | MB] [<fs>]");
+            eprintln!(
+                "\t       mkpart <device_path< <start_sector> <length_in_units>[M | MB] [<fs>]"
+            );
             exit(1);
         }
     };

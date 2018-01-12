@@ -153,9 +153,8 @@ impl<'a> Constraint<'a> {
     /// _Nearest_ is somewhat ambiguous. This function makes no guarantees
     /// about how this ambiguity is resolved.
     pub fn solve_nearest(&self, geom: &Geometry) -> Option<Geometry<'a>> {
-        get_optional(unsafe { ped_constraint_solve_nearest(self.constraint, geom.geometry) }).map(
-            Geometry::from_raw
-        )
+        get_optional(unsafe { ped_constraint_solve_nearest(self.constraint, geom.geometry) })
+            .map(Geometry::from_raw)
     }
 }
 

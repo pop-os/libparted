@@ -3,7 +3,6 @@ extern crate libparted;
 use libparted::*;
 use std::env;
 use std::process::exit;
-use std::ptr;
 
 fn create_and_append<'a>(
     disk: &mut Disk,

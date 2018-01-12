@@ -11,7 +11,7 @@ use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
                     ped_partition_is_flag_available, ped_partition_new, ped_partition_set_flag,
                     ped_partition_set_name, ped_partition_set_system, ped_partition_type_get_name,
-                    PedFileSystemType, PedPartition, PedGeometry};
+                    PedFileSystemType, PedGeometry, PedPartition};
 
 pub use libparted_sys::PedPartitionFlag as PartitionFlag;
 pub use libparted_sys::PedPartitionType as PartitionType;
