@@ -275,10 +275,12 @@ impl<'a> Disk<'a> {
         fn delete_all
     );
 
-    // Removes `part` from disk, and destroys `part`.
-    pub fn delete_partition(&mut self, part: &mut Partition) -> Result<()> {
-        cvt(unsafe { ped_disk_delete_partition(self.disk, part.part) })?;
-        Ok(())
+    /// Removes `part` from disk, and destroys `part`.
+    pub fn delete_partition(&mut self, num: u32) -> Result<()> {
+        cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
+            .and_then(|part|
+                cvt(unsafe { ped_disk_delete_partition(self.disk, part) })
+            ).map(|_| ())
     }
 
     // Clones the disk object, returning a deep copy if it suceeds.
@@ -370,8 +372,11 @@ impl<'a> Disk<'a> {
     ///
     /// If `part` is an extended partition, it must not contain any logical partitions.
     /// Note that `part` will not be destroyed when passed into this function.
-    pub fn remove_partition(&mut self, part: &mut Partition) -> Result<()> {
-        cvt(unsafe { ped_disk_remove_partition(self.disk, part.part) }).map(|_| ())
+    pub fn remove_partition(&mut self, num: u32) -> Result<()> {
+        cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
+            .and_then(|part|
+                cvt(unsafe { ped_disk_remove_partition(self.disk, part) })
+            ).map(|_| ())
     }
 
     /// Set the state of a flag on a disk.
