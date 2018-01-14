@@ -7,7 +7,8 @@ use libparted::*;
 use std::io;
 use std::env;
 use std::num::ParseIntError;
-use std::process::exit;
+use std::path::Path;
+use std::process::{exit, Command, Stdio};
 use std::str::{self, FromStr};
 
 enum Unit {
@@ -81,6 +82,38 @@ pub enum PartedError {
     #[fail(display = "unable to set disk flag")] DiskFlagErr,
     #[fail(display = "unable to get constraint: {}", why)] GetConstraint { why: io::Error },
     #[fail(display = "unable to intersect constraints")] ConstraintIntersect,
+    #[fail(display = "unable to ind newly-created partition")] FindPartition,
+    #[fail(display = "unable to format partition: {}", why)] FormatPartition { why: io::Error },
+}
+
+fn mkfs(device: &str, fs: &str) -> io::Result<()> {
+    let (command, args): (&str, &[&str]) = match fs {
+        "fat16" => ("mkfs.fat", &["-F", "16"]),
+        "fat32" => ("mkfs.fat", &["-F", "32"]),
+        "ext2"  => ("mkfs.ext2", &["-F", "-q"]),
+        "ext4"  => ("mkfs.ext4", &["-F", "-q"]),
+        "btrfs" => ("mkfs.btrfs", &["-f"]),
+        "ntfs"  => ("mkfs.ntfs", &["-F"]),
+        "xfs"   => ("mkfs.xfs", &["-f"]),
+        "swap"  => ("mkswap", &["-f"]),
+        _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported fs")),
+    };
+
+    let status = Command::new(command)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .args(args)
+        .arg(device)
+        .status()?;
+    
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("mkfs for {} failed with {}", fs, status)
+        ))
+    }
 }
 
 // TODO: Figure out how to create an 'Unformatted' partition.
@@ -100,21 +133,19 @@ fn create_partition(
 
     let geometry = Geometry::new(&dev, start as i64, length as i64)
         .map_err(|why| PartedError::CreateGeometry { why })?;
+    
+    // Create a new partition with the following file system type.
+    let fs = fs.unwrap_or("ext2".into());
+    let fs_type = match FileSystemType::get(&fs) {
+        Some(fs) => fs,
+        None => {
+            eprintln!("invalid fs provided: {}", fs);
+            exit(1);
+        },
+    };
 
     {
         let mut disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
-
-        // Create a new partition with the following file system type.
-        let fs_type = match fs {
-            Some(fs) => match FileSystemType::get(&fs) {
-                Some(fs) => Some(fs),
-                None => {
-                    eprintln!("invalid fs provided: {}", fs);
-                    exit(1);
-                }
-            },
-            None => None,
-        };
 
         let part_type = PartitionType::PED_PARTITION_NORMAL;
 
@@ -122,7 +153,7 @@ fn create_partition(
         let mut partition = Partition::new(
             &mut disk,
             part_type,
-            fs_type.as_ref(),
+            Some(&fs_type),
             geometry.start(),
             geometry.start() + geometry.length(),
         ).map_err(|why| PartedError::CreatePartition { why })?;
@@ -145,25 +176,39 @@ fn create_partition(
         return Err(PartedError::SyncErr { why });
     }
 
+    let device_path = dev.path().to_path_buf();
+
     {
         let disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
-        println!("New Partition Scheme:");
-        for (part_i, part) in disk.parts().enumerate() {
-            let name = part.type_get_name();
-            if name == "metadata" || name == "free" {
-                continue;
-            }
-            println!("    Part {}", part_i);
-            println!("        Name:   {:?}", name);
-            println!("        Type:   {:?}", part.name());
-            println!("        Path:   {:?}", part.get_path());
-            println!("        Active: {}", part.is_active());
-            println!("        Busy:   {}", part.is_busy());
-            println!("        FS:     {:?}", part.fs_type_name());
-            println!("        Start:  {}", part.geom_start());
-            println!("        End:    {}", part.geom_end());
-            println!("        Length: {}", part.geom_length());
+
+        {
+            let new_part = disk.get_partition_by_sector(start as i64)
+                .ok_or(PartedError::FindPartition)?;
+            
+            let device_path = format!("{}{}", device_path.display(), new_part.num());
+            eprintln!("mkpart: formatting '{}' with '{}'", device_path, fs);
+            mkfs(&device_path, &fs).map_err(|why| PartedError::FormatPartition { why })?;
         }
+    }
+
+    // Drop and re-open the device to obtain updated partition information.
+    drop(dev);
+    let mut dev = Device::get(&device).map_err(|why| PartedError::OpenDevice { why })?;
+    let disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
+
+    // Displays the new partition layout to the user.
+    println!("New Partition Scheme:");
+    for (part_i, part) in disk.parts().enumerate() {
+        let name = part.type_get_name();
+        if name == "metadata" || name == "free" {
+            continue;
+        }
+        println!("Part: {}", part_i);
+        println!("    Path:   {:?}", part.get_path());
+        println!("    FS:     {:?}", part.fs_type_name());
+        println!("    Start:  {}", part.geom_start());
+        println!("    End:    {}", part.geom_end());
+        println!("    Length: {}", part.geom_length());
     }
 
     Ok(())
