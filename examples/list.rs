@@ -7,8 +7,7 @@ use std::io::Result;
 use std::process;
 
 fn list() -> Result<()> {
-    for (dev_i, device_res) in Device::devices(true).enumerate() {
-        let mut device = device_res?;
+    for (dev_i, mut device) in Device::devices(true).enumerate() {
         let hw_geom = device.hw_geom();
         let bios_geom = device.bios_geom();
 
@@ -55,11 +54,6 @@ fn list() -> Result<()> {
 }
 
 fn main() {
-    if unsafe { libc::geteuid() } != 0 {
-        eprintln!("list: must be run with root");
-        process::exit(1);
-    }
-
     if let Err(err) = list() {
         eprintln!("list: failed to list: {}", err);
         process::exit(1);

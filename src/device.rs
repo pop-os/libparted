@@ -111,7 +111,9 @@ impl<'a> Device<'a> {
 
     /// Attempts to open the device.
     pub fn open(&mut self) -> Result<()> {
-        cvt(unsafe { ped_device_open(self.device) }).map(|_| ())
+        cvt(unsafe { ped_device_open(self.device) })?;
+        self.is_droppable = true;
+        Ok(())
     }
 
     /// Attempts to get the device of the given `path`, then attempts to open that device.
@@ -361,17 +363,16 @@ impl<'a> Device<'a> {
 }
 
 impl<'a> Iterator for DeviceIter<'a> {
-    type Item = Result<Device<'a>>;
-    fn next(&mut self) -> Option<Result<Device<'a>>> {
+    type Item = Device<'a>;
+    fn next(&mut self) -> Option<Device<'a>> {
         let device = unsafe { ped_device_get_next(self.0) };
         if device.is_null() {
             None
         } else {
             self.0 = device;
-            Some(
-                cvt(unsafe { ped_device_open(device) })
-                    .and(Ok(unsafe { Device::from_ped_device(device) })),
-            )
+            let mut device = unsafe { Device::from_ped_device(device) };
+            device.is_droppable = false;
+            Some(device)
         }
     }
 }
