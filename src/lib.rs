@@ -1,3 +1,4 @@
+extern crate libc;
 extern crate libparted_sys;
 
 use std::io;

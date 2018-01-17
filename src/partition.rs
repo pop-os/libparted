@@ -140,14 +140,14 @@ impl<'a> Partition<'a> {
     }
 
     /// Returns the name of a partition `part`. This will only work if the disk label supports it.
-    pub fn name(&self) -> Option<&str> {
+    pub fn name(&self) -> Option<String> {
         if self.is_active() {
             unsafe {
                 let name = ped_partition_get_name(self.part);
                 if name.is_null() {
                     None
                 } else {
-                    str::from_utf8(CStr::from_ptr(name).to_bytes()).ok()
+                    CStr::from_ptr(name).to_str().ok().map(|s| s.to_string())
                 }
             }
         } else {
