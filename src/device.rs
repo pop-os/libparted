@@ -104,9 +104,12 @@ impl<'a> Device<'a> {
         let cstr = CString::new(os_str.as_bytes())
             .map_err(|err| Error::new(ErrorKind::InvalidData, format!("Inavlid data: {}", err)))?;
 
-        // Then attempt to get the device, and open it before returning it.
-        let device = cvt(unsafe { ped_device_get(cstr.as_ptr()) })?;
-        Ok(Device::new_(device))
+        // Then attempt to get the device.
+        let mut device = Device::new_(
+            cvt(unsafe { ped_device_get(cstr.as_ptr()) })?
+        );
+        device.is_droppable = false;
+        Ok(device)
     }
 
     /// Attempts to open the device.
