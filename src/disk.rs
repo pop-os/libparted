@@ -40,6 +40,7 @@ macro_rules! disk_fn_mut {
 pub struct Disk<'a> {
     pub(crate) disk: *mut PedDisk,
     pub(crate) phantom: PhantomData<&'a PedDisk>,
+    is_droppable: bool,
 }
 
 pub struct DiskType<'a> {
@@ -100,11 +101,9 @@ impl<'a> Disk<'a> {
     /// **Warning**: May modify the supplied `device` if the partition table indicates that the
     /// existing values are incorrect.
     pub fn new(device: &'a mut Device) -> Result<Disk<'a>> {
+        let is_droppable = device.is_droppable;
         let disk = cvt(unsafe { ped_disk_new(device.ped_device()) })?;
-        Ok(Disk {
-            disk,
-            phantom: PhantomData,
-        })
+        Ok(Disk { disk, phantom: PhantomData, is_droppable })
     }
 
     /// Creates a new partition table on `device`.
@@ -115,11 +114,19 @@ impl<'a> Disk<'a> {
         cvt(unsafe { ped_disk_new_fresh(device.ped_device(), type_.type_) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,
+            is_droppable: true
         })
     }
 
     /// Obtains the inner device from the disk.
     pub unsafe fn get_device<'b>(&self) -> Device<'b> {
+        let mut device = Device::from_ped_device((*self.disk).dev);
+        device.is_droppable = false;
+        device
+    }
+
+    /// Obtains the inner device from the disk, with mutable access.
+    pub unsafe fn get_device_mut<'b>(&'b mut self) -> Device<'b> {
         let mut device = Device::from_ped_device((*self.disk).dev);
         device.is_droppable = false;
         device
@@ -139,11 +146,6 @@ impl<'a> Disk<'a> {
                 })
             }
         }
-    }
-
-    /// Obtains the inner device from the disk, with mutable access.
-    pub fn get_device_mut<'b>(&'b mut self) -> Device<'b> {
-        unsafe { Device::from_ped_device((*self.disk).dev) }
     }
 
     pub fn get_disk_type_name<'b>(&'b self) -> Option<&str> {
@@ -288,6 +290,7 @@ impl<'a> Disk<'a> {
         cvt(unsafe { ped_disk_duplicate(self.disk) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,
+            is_droppable: true
         })
     }
 
@@ -530,8 +533,8 @@ impl<'a> Iterator for DiskPartIter<'a> {
 
 impl<'a> Drop for Disk<'a> {
     fn drop(&mut self) {
-        unsafe {
-            ped_disk_destroy(self.disk);
+        if self.is_droppable {
+            unsafe { ped_disk_destroy(self.disk); }
         }
     }
 }
