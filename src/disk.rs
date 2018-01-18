@@ -296,10 +296,12 @@ impl<'a> Disk<'a> {
 
     // Obtains the extended partition from the disk, if it exists.
     pub fn extended_partition<'b>(&'b self) -> Option<Partition<'b>> {
-        get_optional(unsafe { ped_disk_extended_partition(self.disk) }).map(|part| Partition {
-            part,
-            phantom: PhantomData,
-        })
+        get_optional(unsafe { ped_disk_extended_partition(self.disk) })
+            .map(|part| {
+                let mut partition = Partition::from(part);
+                partition.is_droppable = false;
+                partition
+            })
     }
 
     /// Get the alignment needed for partition boundaries on this disk.
@@ -322,21 +324,20 @@ impl<'a> Disk<'a> {
         if part.is_null() {
             None
         } else {
-            Some(Partition {
-                part,
-                phantom: PhantomData,
-            })
+            let mut partition = Partition::from(part);
+            partition.is_droppable = false;
+            Some(partition)
         }
     }
 
     /// Returns the partition numbered `num`.
     pub fn get_partition(&'a self, num: u32) -> Option<Partition<'a>> {
-        get_optional(unsafe { ped_disk_get_partition(self.disk, num as i32) }).map(|part| {
-            Partition {
-                part,
-                phantom: PhantomData,
-            }
-        })
+        get_optional(unsafe { ped_disk_get_partition(self.disk, num as i32) })
+            .map(|part| {
+                let mut partition = Partition::from(part);
+                partition.is_droppable = false;
+                partition
+            })
     }
 
     /// Get the number of primary partitions.
@@ -426,12 +427,12 @@ impl<'a> Disk<'a> {
 
         let start_part = match self.get_partition_by_sector(start) {
             Some(part) => part,
-            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) },
+            None => Partition::from(ptr::null_mut()),
         };
 
         let end_part = match self.get_partition_by_sector(end) {
             Some(part) => part,
-            None => unsafe { Partition::from_ped_partition(ptr::null_mut()) },
+            None => Partition::from(ptr::null_mut()),
         };
 
         let adjacent = start_part.geom_end() + 1 == end_part.geom_start();
@@ -526,7 +527,9 @@ impl<'a> Iterator for DiskPartIter<'a> {
             None
         } else {
             self.1 = partition;
-            unsafe { Some(Partition::from_ped_partition(partition)) }
+            let mut partition = Partition::from(partition);
+            partition.is_droppable = false;
+            Some(partition)
         }
     }
 }

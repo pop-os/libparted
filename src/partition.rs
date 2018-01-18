@@ -20,16 +20,20 @@ pub use libparted_sys::PedPartitionType as PartitionType;
 pub struct Partition<'a> {
     pub(crate) part: *mut PedPartition,
     pub(crate) phantom: PhantomData<&'a PedPartition>,
+    pub(crate) is_droppable: bool,
+}
+
+impl<'a> From<*mut PedPartition> for Partition<'a> {
+    fn from(part: *mut PedPartition) -> Self {
+        Partition {
+            part: part,
+            phantom: PhantomData,
+            is_droppable: true
+        }
+    }
 }
 
 impl<'a> Partition<'a> {
-    pub unsafe fn from_ped_partition(part: *mut PedPartition) -> Self {
-        Partition {
-            part,
-            phantom: PhantomData,
-        }
-    }
-
     /// Create a new **Partition** on `disk`.
     ///
     /// # Note:
@@ -50,7 +54,7 @@ impl<'a> Partition<'a> {
     ) -> io::Result<Partition<'a>> {
         let fs_type = fs_type.map_or(ptr::null_mut() as *mut PedFileSystemType, |f| f.fs);
         cvt(unsafe { ped_partition_new(disk.disk, type_, fs_type, start, end) })
-            .map(|partition| unsafe { Partition::from_ped_partition(partition) })
+            .map(Partition::from)
     }
 
     pub fn num(&'a self) -> i32 {
@@ -224,6 +228,8 @@ impl<'a> Partition<'a> {
 
 impl<'a> Drop for Partition<'a> {
     fn drop(&mut self) {
-        unsafe { ped_partition_destroy(self.part) }
+        if self.is_droppable {
+            unsafe { ped_partition_destroy(self.part) }
+        }
     }
 }
