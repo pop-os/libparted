@@ -221,7 +221,6 @@ impl<'a> Partition<'a> {
 impl<'a> Drop for Partition<'a> {
     fn drop(&mut self) {
         if self.is_droppable {
-            eprintln!("Dropping partition");
             unsafe { ped_partition_destroy(self.part) }
         }
     }

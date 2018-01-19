@@ -538,7 +538,6 @@ impl<'a> Iterator for DiskPartIter<'a> {
 impl<'a> Drop for Disk<'a> {
     fn drop(&mut self) {
         if self.is_droppable {
-            eprintln!("dropping disk");
             unsafe {
                 ped_disk_destroy(self.disk);
             }

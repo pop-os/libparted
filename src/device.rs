@@ -382,7 +382,6 @@ impl<'a> Drop for Device<'a> {
     fn drop(&mut self) {
         unsafe {
             if self.open_count() > 0 && self.is_droppable {
-                eprintln!("Closing device");
                 ped_device_close(self.device);
             }
         }
