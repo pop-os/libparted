@@ -90,12 +90,12 @@ fn mkfs(device: &str, fs: &str) -> io::Result<()> {
     let (command, args): (&str, &[&str]) = match fs {
         "fat16" => ("mkfs.fat", &["-F", "16"]),
         "fat32" => ("mkfs.fat", &["-F", "32"]),
-        "ext2"  => ("mkfs.ext2", &["-F", "-q"]),
-        "ext4"  => ("mkfs.ext4", &["-F", "-q"]),
+        "ext2" => ("mkfs.ext2", &["-F", "-q"]),
+        "ext4" => ("mkfs.ext4", &["-F", "-q"]),
         "btrfs" => ("mkfs.btrfs", &["-f"]),
-        "ntfs"  => ("mkfs.ntfs", &["-F"]),
-        "xfs"   => ("mkfs.xfs", &["-f"]),
-        "swap"  => ("mkswap", &["-f"]),
+        "ntfs" => ("mkfs.ntfs", &["-F"]),
+        "xfs" => ("mkfs.xfs", &["-f"]),
+        "swap" => ("mkswap", &["-f"]),
         _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "unsupported fs")),
     };
 
@@ -105,13 +105,13 @@ fn mkfs(device: &str, fs: &str) -> io::Result<()> {
         .args(args)
         .arg(device)
         .status()?;
-    
+
     if status.success() {
         Ok(())
     } else {
         Err(io::Error::new(
             io::ErrorKind::Other,
-            format!("mkfs for {} failed with {}", fs, status)
+            format!("mkfs for {} failed with {}", fs, status),
         ))
     }
 }
@@ -133,7 +133,7 @@ fn create_partition(
 
     let geometry = Geometry::new(&dev, start as i64, length as i64)
         .map_err(|why| PartedError::CreateGeometry { why })?;
-    
+
     // Create a new partition with the following file system type.
     let fs = fs.unwrap_or("ext2".into());
     let fs_type = match FileSystemType::get(&fs) {
@@ -141,7 +141,7 @@ fn create_partition(
         None => {
             eprintln!("invalid fs provided: {}", fs);
             exit(1);
-        },
+        }
     };
 
     {
@@ -184,7 +184,7 @@ fn create_partition(
         {
             let new_part = disk.get_partition_by_sector(start as i64)
                 .ok_or(PartedError::FindPartition)?;
-            
+
             let device_path = format!("{}{}", device_path.display(), new_part.num());
             eprintln!("mkpart: formatting '{}' with '{}'", device_path, fs);
             mkfs(&device_path, &fs).map_err(|why| PartedError::FormatPartition { why })?;

@@ -14,7 +14,7 @@ fn main() {
                 eprintln!("rmpart: unable to open {}: {}", path, why);
                 exit(1);
             }
-        }
+        },
         None => {
             eprintln!("rmpart: no device path specified");
             eprintln!("    USAGE: rmpart DEVICE PARTITION_NUM...");
@@ -38,7 +38,7 @@ fn main() {
                 Some(partition_id) => {
                     if let Err(why) = disk.remove_partition(partition_id) {
                         eprintln!("rmpart: unable to add partition to removal queue: {}", why);
-                        continue
+                        continue;
                     }
                 }
                 None => eprintln!("rmpart: invalid partition id: {}", arg),

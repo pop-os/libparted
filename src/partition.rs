@@ -28,7 +28,7 @@ impl<'a> From<*mut PedPartition> for Partition<'a> {
         Partition {
             part: part,
             phantom: PhantomData,
-            is_droppable: true
+            is_droppable: true,
         }
     }
 }
@@ -75,14 +75,6 @@ impl<'a> Partition<'a> {
                 }
             }
         }
-    }
-
-    pub fn get_device(&'a self) -> Device<'a> {
-        unsafe { Device::from_ped_device((*self.part).geom.dev) }
-    }
-
-    pub fn get_device_mut(&'a mut self) -> Device<'a> {
-        unsafe { Device::from_ped_device((*self.part).geom.dev) }
     }
 
     pub fn get_geom<'b>(&mut self) -> Geometry<'b> {
@@ -229,6 +221,7 @@ impl<'a> Partition<'a> {
 impl<'a> Drop for Partition<'a> {
     fn drop(&mut self) {
         if self.is_droppable {
+            eprintln!("Dropping partition");
             unsafe { ped_partition_destroy(self.part) }
         }
     }

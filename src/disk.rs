@@ -103,7 +103,11 @@ impl<'a> Disk<'a> {
     pub fn new(device: &'a mut Device) -> Result<Disk<'a>> {
         let is_droppable = device.is_droppable;
         let disk = cvt(unsafe { ped_disk_new(device.ped_device()) })?;
-        Ok(Disk { disk, phantom: PhantomData, is_droppable })
+        Ok(Disk {
+            disk,
+            phantom: PhantomData,
+            is_droppable,
+        })
     }
 
     /// Creates a new partition table on `device`.
@@ -114,7 +118,7 @@ impl<'a> Disk<'a> {
         cvt(unsafe { ped_disk_new_fresh(device.ped_device(), type_.type_) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,
-            is_droppable: true
+            is_droppable: true,
         })
     }
 
@@ -198,6 +202,7 @@ impl<'a> Disk<'a> {
     /// strict constraint will probably mean that this function will fail (in which case `part`
     /// will be left unmodified) `part` is assigned a number (`part.num`) in this process.
     pub fn add_partition(&mut self, part: &mut Partition, constraint: &Constraint) -> Result<()> {
+        part.is_droppable = false;
         cvt(unsafe { ped_disk_add_partition(self.disk, part.part, constraint.constraint) })?;
         Ok(())
     }
@@ -280,9 +285,8 @@ impl<'a> Disk<'a> {
     /// Removes `part` from disk, and destroys `part`.
     pub fn delete_partition(&mut self, num: u32) -> Result<()> {
         cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
-            .and_then(|part|
-                cvt(unsafe { ped_disk_delete_partition(self.disk, part) })
-            ).map(|_| ())
+            .and_then(|part| cvt(unsafe { ped_disk_delete_partition(self.disk, part) }))
+            .map(|_| ())
     }
 
     // Clones the disk object, returning a deep copy if it suceeds.
@@ -290,18 +294,17 @@ impl<'a> Disk<'a> {
         cvt(unsafe { ped_disk_duplicate(self.disk) }).map(|disk| Disk {
             disk,
             phantom: PhantomData,
-            is_droppable: true
+            is_droppable: true,
         })
     }
 
     // Obtains the extended partition from the disk, if it exists.
     pub fn extended_partition<'b>(&'b self) -> Option<Partition<'b>> {
-        get_optional(unsafe { ped_disk_extended_partition(self.disk) })
-            .map(|part| {
-                let mut partition = Partition::from(part);
-                partition.is_droppable = false;
-                partition
-            })
+        get_optional(unsafe { ped_disk_extended_partition(self.disk) }).map(|part| {
+            let mut partition = Partition::from(part);
+            partition.is_droppable = false;
+            partition
+        })
     }
 
     /// Get the alignment needed for partition boundaries on this disk.
@@ -332,12 +335,11 @@ impl<'a> Disk<'a> {
 
     /// Returns the partition numbered `num`.
     pub fn get_partition(&'a self, num: u32) -> Option<Partition<'a>> {
-        get_optional(unsafe { ped_disk_get_partition(self.disk, num as i32) })
-            .map(|part| {
-                let mut partition = Partition::from(part);
-                partition.is_droppable = false;
-                partition
-            })
+        get_optional(unsafe { ped_disk_get_partition(self.disk, num as i32) }).map(|part| {
+            let mut partition = Partition::from(part);
+            partition.is_droppable = false;
+            partition
+        })
     }
 
     /// Get the number of primary partitions.
@@ -378,9 +380,8 @@ impl<'a> Disk<'a> {
     /// Note that `part` will not be destroyed when passed into this function.
     pub fn remove_partition(&mut self, num: u32) -> Result<()> {
         cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
-            .and_then(|part|
-                cvt(unsafe { ped_disk_remove_partition(self.disk, part) })
-            ).map(|_| ())
+            .and_then(|part| cvt(unsafe { ped_disk_remove_partition(self.disk, part) }))
+            .map(|_| ())
     }
 
     /// Set the state of a flag on a disk.
@@ -537,7 +538,10 @@ impl<'a> Iterator for DiskPartIter<'a> {
 impl<'a> Drop for Disk<'a> {
     fn drop(&mut self) {
         if self.is_droppable {
-            unsafe { ped_disk_destroy(self.disk); }
+            eprintln!("dropping disk");
+            unsafe {
+                ped_disk_destroy(self.disk);
+            }
         }
     }
 }

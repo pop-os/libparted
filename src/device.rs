@@ -105,9 +105,7 @@ impl<'a> Device<'a> {
             .map_err(|err| Error::new(ErrorKind::InvalidData, format!("Inavlid data: {}", err)))?;
 
         // Then attempt to get the device.
-        let mut device = Device::new_(
-            cvt(unsafe { ped_device_get(cstr.as_ptr()) })?
-        );
+        let mut device = Device::new_(cvt(unsafe { ped_device_get(cstr.as_ptr()) })?);
         device.is_droppable = false;
         Ok(device)
     }
@@ -384,6 +382,7 @@ impl<'a> Drop for Device<'a> {
     fn drop(&mut self) {
         unsafe {
             if self.open_count() > 0 && self.is_droppable {
+                eprintln!("Closing device");
                 ped_device_close(self.device);
             }
         }
