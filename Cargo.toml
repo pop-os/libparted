@@ -1,6 +1,6 @@
 [package]
 name = "libparted"
-version = "0.1.1"
+version = "0.1.2"
 description = "Rust wrappers for libparted"
 repository = "https://github.com/pop-os/libparted"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 libc = "0.2"
-distinst-libparted-sys = "0.1"
+libparted-sys = "0.1.1"
 
 [dev-dependencies]
 libc = "0.2"
