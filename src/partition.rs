@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::ptr;
 use std::str;
-use super::{cvt, Device, Disk, FileSystemType, Geometry};
+use super::{cvt, Disk, FileSystemType, Geometry};
 
 use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
                     ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,

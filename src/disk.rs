@@ -19,7 +19,7 @@ use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check a
                     ped_disk_max_partition_length, ped_disk_max_partition_start_sector,
                     ped_disk_maximize_partition, ped_disk_minimize_extended_partition,
                     ped_disk_new, ped_disk_new_fresh, ped_disk_next_partition, ped_disk_print,
-                    ped_disk_remove_partition, ped_disk_set_flag, ped_disk_set_partition_geom,
+                    ped_disk_set_flag, ped_disk_set_partition_geom,
                     ped_disk_type_check_feature, ped_disk_type_get, ped_disk_type_get_next,
                     ped_disk_type_register, ped_disk_type_unregister, PedDisk, PedDiskType,
                     PedPartition};
@@ -247,7 +247,7 @@ impl<'a> Disk<'a> {
 
     disk_fn_mut!(
         /// Perform a sanity check on a partition table
-        /// 
+        ///
         /// **NOTE**: The check performed is generic (ie: it does not depend on the label type
         /// of the disk).
         fn check
@@ -262,7 +262,7 @@ impl<'a> Disk<'a> {
     disk_fn_mut!(
         /// Writes the in-memory changes to a partition table to disk and informs
         /// the operating system of the changes.
-        /// 
+        ///
         /// NOTE: Equivalent to calling `disk.commit_to_dev()`, followed by `disk.commit_to_os()`.
         fn commit
     );
@@ -281,13 +281,6 @@ impl<'a> Disk<'a> {
         /// Removes and destroys all partitions on `disk`.
         fn delete_all
     );
-
-    /// Removes `part` from disk, and destroys `part`.
-    pub fn delete_partition(&mut self, num: u32) -> Result<()> {
-        cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
-            .and_then(|part| cvt(unsafe { ped_disk_delete_partition(self.disk, part) }))
-            .map(|_| ())
-    }
 
     // Clones the disk object, returning a deep copy if it suceeds.
     pub fn duplicate<'b>(&mut self) -> Result<Disk<'b>> {
@@ -333,6 +326,11 @@ impl<'a> Disk<'a> {
         }
     }
 
+    /// Similar to `get_partition_by_sector`, but returns a raw pointer instead.
+    pub unsafe fn get_partition_by_sector_raw(&self, sector: i64) -> *mut PedPartition {
+        ped_disk_get_partition_by_sector(self.disk, sector)
+    }
+
     /// Returns the partition numbered `num`.
     pub fn get_partition(&'a self, num: u32) -> Option<Partition<'a>> {
         get_optional(unsafe { ped_disk_get_partition(self.disk, num as i32) }).map(|part| {
@@ -340,6 +338,11 @@ impl<'a> Disk<'a> {
             partition.is_droppable = false;
             partition
         })
+    }
+
+    /// Similar to `get_partition`, but returns a raw pointer instead.
+    pub unsafe fn get_partition_raw(&self, num: u32) -> *mut PedPartition {
+        ped_disk_get_partition(self.disk, num as i32)
     }
 
     /// Get the number of primary partitions.
@@ -377,11 +380,30 @@ impl<'a> Disk<'a> {
     /// Removes the `part` **Partition** from the disk.
     ///
     /// If `part` is an extended partition, it must not contain any logical partitions.
-    /// Note that `part` will not be destroyed when passed into this function.
-    pub fn remove_partition(&mut self, num: u32) -> Result<()> {
-        cvt(unsafe { ped_disk_get_partition(self.disk, num as i32) })
-            .and_then(|part| cvt(unsafe { ped_disk_remove_partition(self.disk, part) }))
-            .map(|_| ())
+    pub unsafe fn remove_partition(&mut self, part: *mut PedPartition) -> Result<()> {
+        cvt(ped_disk_delete_partition(self.disk, part)).map(|_| ())
+    }
+
+    /// Removes a partition from the disk by the partition number.
+    ///
+    /// If that partition is an extended partition, it must not contain any logical partitions.
+    pub fn remove_partition_by_number(&mut self, num: u32) -> Result<()> {
+        unsafe {
+            cvt(ped_disk_get_partition(self.disk, num as i32))
+                .and_then(|part| cvt(ped_disk_delete_partition(self.disk, part)))
+                .map(|_| ())
+        }
+    }
+
+    /// Removes a partition from the disk by the sector where that partition lies.alignment
+    ///
+    /// If that partition is an extended partition, it must not contain any logical partitions.
+    pub fn remove_partition_by_sector(&mut self, sector: i64) -> Result<()> {
+        unsafe {
+            cvt(ped_disk_get_partition_by_sector(self.disk, sector))
+                .and_then(|part| cvt(ped_disk_delete_partition(self.disk, part)))
+                .map(|_| ())
+        }
     }
 
     /// Set the state of a flag on a disk.
