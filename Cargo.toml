@@ -1,6 +1,6 @@
 [package]
 name = "libparted"
-version = "0.1.2"
+version = "0.1.3"
 description = "Rust wrappers for libparted"
 repository = "https://github.com/pop-os/libparted"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
