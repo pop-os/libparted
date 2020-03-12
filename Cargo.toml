@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 libc = "0.2"
-libparted-sys = "0.1.1"
+libparted-sys = "0.3"
 
 [dev-dependencies]
 libc = "0.2"
