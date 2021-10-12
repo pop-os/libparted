@@ -8,8 +8,7 @@ license = "MIT"
 
 [dependencies]
 libc = "0.2.103"
-# TODO: use a new release version
-libparted-sys = { git = "https://github.com/cholcombe973/libparted-sys", rev = "99d7b6d"}
+libparted-sys = "0.3.1"
 
 [dev-dependencies]
 libc = "0.2.103"
