@@ -1,20 +1,21 @@
 use std::ffi::{CStr, CString, OsStr};
 use std::io::{Error, ErrorKind, Result};
 use std::marker::PhantomData;
-use std::os::unix::ffi::OsStrExt;
 use std::os::raw::c_void;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 use std::str;
 
-use libparted_sys::{ped_constraint_any, ped_device_begin_external_access, ped_device_check,
-                    ped_device_close, ped_device_end_external_access, ped_device_get,
-                    ped_device_get_constraint, ped_device_get_minimal_aligned_constraint,
-                    ped_device_get_minimum_alignment, ped_device_get_next,
-                    ped_device_get_optimal_aligned_constraint, ped_device_get_optimum_alignment,
-                    ped_device_is_busy, ped_device_open, ped_device_probe_all, ped_device_sync,
-                    ped_device_sync_fast, ped_device_write, ped_disk_clobber, ped_disk_probe,
-                    PedDevice};
+use libparted_sys::{
+    ped_constraint_any, ped_device_begin_external_access, ped_device_check, ped_device_close,
+    ped_device_end_external_access, ped_device_get, ped_device_get_constraint,
+    ped_device_get_minimal_aligned_constraint, ped_device_get_minimum_alignment,
+    ped_device_get_next, ped_device_get_optimal_aligned_constraint,
+    ped_device_get_optimum_alignment, ped_device_is_busy, ped_device_open, ped_device_probe_all,
+    ped_device_sync, ped_device_sync_fast, ped_device_write, ped_disk_clobber, ped_disk_probe,
+    PedDevice,
+};
 
 pub use libparted_sys::PedDeviceType as DeviceType;
 pub use libparted_sys::_PedCHSGeometry as CHSGeometry;
@@ -36,7 +37,7 @@ macro_rules! get_bool {
         pub fn $field(&self) -> bool {
             unsafe { *self.device }.$field != 0
         }
-    }
+    };
 }
 
 macro_rules! get_geometry {
@@ -44,7 +45,7 @@ macro_rules! get_geometry {
         pub fn $kind(&self) -> CHSGeometry {
             unsafe { (*self.device).$kind }
         }
-    }
+    };
 }
 
 impl<'a> Device<'a> {
@@ -124,10 +125,12 @@ impl<'a> Device<'a> {
         Ok(device)
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn from_ped_device(device: *mut PedDevice) -> Device<'a> {
         Device::new_(device)
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn ped_device(&self) -> *mut PedDevice {
         self.device
     }
@@ -322,7 +325,7 @@ impl<'a> Device<'a> {
     pub fn path(&self) -> &Path {
         let cstr = unsafe { CStr::from_ptr((*self.device).path) };
         let os_str = OsStr::from_bytes(cstr.to_bytes());
-        &Path::new(os_str)
+        Path::new(os_str)
     }
 
     pub fn type_(&self) -> DeviceType {

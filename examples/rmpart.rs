@@ -1,8 +1,8 @@
 extern crate libparted;
 
+use libparted::*;
 use std::env;
 use std::process::exit;
-use libparted::*;
 
 fn main() {
     // Open the device so that we may open the disk.
@@ -36,7 +36,7 @@ fn main() {
         for arg in args {
             match arg.parse::<u32>().ok() {
                 Some(partition_id) => {
-                    if let Err(why) = disk.remove_partition(partition_id) {
+                    if let Err(why) = disk.remove_partition_by_number(partition_id) {
                         eprintln!("rmpart: unable to add partition to removal queue: {}", why);
                         continue;
                     }

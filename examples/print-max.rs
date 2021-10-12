@@ -1,8 +1,8 @@
 extern crate libparted;
 
+use libparted::*;
 use std::env::args;
 use std::process::exit;
-use libparted::*;
 
 fn main() {
     let args = args().collect::<Vec<String>>();

@@ -4,10 +4,9 @@ extern crate failure_derive;
 extern crate libparted;
 
 use libparted::*;
-use std::io;
 use std::env;
+use std::io;
 use std::num::ParseIntError;
-use std::path::Path;
 use std::process::{exit, Command, Stdio};
 use std::str::{self, FromStr};
 
@@ -18,7 +17,7 @@ enum Unit {
 }
 
 impl Unit {
-    pub fn to_sectors(self, sector_size: u64) -> u64 {
+    pub fn into_sectors(self, sector_size: u64) -> u64 {
         match self {
             Unit::Sectors(sectors) => sectors,
             Unit::Megabytes(mb) => mb * 1000 * 1000 / sector_size,
@@ -30,18 +29,12 @@ impl Unit {
 impl FromStr for Unit {
     type Err = ParseIntError;
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        if string.ends_with("MB") {
-            string[..string.len() - 2]
-                .parse::<u64>()
-                .map(Unit::Megabytes)
-        } else if string.ends_with("MiB") {
-            string[..string.len() - 3]
-                .parse::<u64>()
-                .map(Unit::Mebibytes)
-        } else if string.ends_with("M") {
-            string[..string.len() - 1]
-                .parse::<u64>()
-                .map(Unit::Megabytes)
+        if let Some(stripped) = string.strip_suffix("MB") {
+            stripped.parse::<u64>().map(Unit::Megabytes)
+        } else if let Some(stripped) = string.strip_suffix("MiB") {
+            stripped.parse::<u64>().map(Unit::Mebibytes)
+        } else if let Some(stripped) = string.strip_suffix('M') {
+            stripped.parse::<u64>().map(Unit::Megabytes)
         } else {
             string.parse::<u64>().map(Unit::Sectors)
         }
@@ -55,9 +48,13 @@ fn get_config<I: Iterator<Item = String>>(
         io::Error::new(io::ErrorKind::InvalidData, msg)
     }
 
-    let device = args.next().ok_or_else(|| config_err("no device provided"))?;
+    let device = args
+        .next()
+        .ok_or_else(|| config_err("no device provided"))?;
     let start_str = args.next().ok_or_else(|| config_err("no start provided"))?;
-    let length_str = args.next().ok_or_else(|| config_err("no length provided"))?;
+    let length_str = args
+        .next()
+        .ok_or_else(|| config_err("no length provided"))?;
     let start = start_str
         .parse::<Unit>()
         .map_err(|_| config_err("invalid start value"))?;
@@ -70,20 +67,34 @@ fn get_config<I: Iterator<Item = String>>(
 
 #[derive(Debug, Fail)]
 pub enum PartedError {
-    #[fail(display = "unable to open device: {}", why)] OpenDevice { why: io::Error },
-    #[fail(display = "unable to create new geometry: {}", why)] CreateGeometry { why: io::Error },
-    #[fail(display = "unable to create new disk: {}", why)] CreateDisk { why: io::Error },
-    #[fail(display = "unable to create new partition: {}", why)] CreatePartition { why: io::Error },
-    #[fail(display = "unable to get exact constraint from geometry")] ExactConstraint,
-    #[fail(display = "unable to add partition to disk: {}", why)] AddPartition { why: io::Error },
-    #[fail(display = "unable to commit changes to disk: {}", why)] CommitChanges { why: io::Error },
-    #[fail(display = "invalid file system type")] InvalidFileSystemType,
-    #[fail(display = "unable to sync device: {}", why)] SyncErr { why: io::Error },
-    #[fail(display = "unable to set disk flag")] DiskFlagErr,
-    #[fail(display = "unable to get constraint: {}", why)] GetConstraint { why: io::Error },
-    #[fail(display = "unable to intersect constraints")] ConstraintIntersect,
-    #[fail(display = "unable to ind newly-created partition")] FindPartition,
-    #[fail(display = "unable to format partition: {}", why)] FormatPartition { why: io::Error },
+    #[fail(display = "unable to open device: {}", why)]
+    OpenDevice { why: io::Error },
+    #[fail(display = "unable to create new geometry: {}", why)]
+    CreateGeometry { why: io::Error },
+    #[fail(display = "unable to create new disk: {}", why)]
+    CreateDisk { why: io::Error },
+    #[fail(display = "unable to create new partition: {}", why)]
+    CreatePartition { why: io::Error },
+    #[fail(display = "unable to get exact constraint from geometry")]
+    ExactConstraint,
+    #[fail(display = "unable to add partition to disk: {}", why)]
+    AddPartition { why: io::Error },
+    #[fail(display = "unable to commit changes to disk: {}", why)]
+    CommitChanges { why: io::Error },
+    #[fail(display = "invalid file system type")]
+    InvalidFileSystemType,
+    #[fail(display = "unable to sync device: {}", why)]
+    SyncErr { why: io::Error },
+    #[fail(display = "unable to set disk flag")]
+    DiskFlagErr,
+    #[fail(display = "unable to get constraint: {}", why)]
+    GetConstraint { why: io::Error },
+    #[fail(display = "unable to intersect constraints")]
+    ConstraintIntersect,
+    #[fail(display = "unable to ind newly-created partition")]
+    FindPartition,
+    #[fail(display = "unable to format partition: {}", why)]
+    FormatPartition { why: io::Error },
 }
 
 fn mkfs(device: &str, fs: &str) -> io::Result<()> {
@@ -128,14 +139,14 @@ fn create_partition(
 
     // Get the sector start / length of the new partition.
     let sector_size = dev.sector_size();
-    let start = start.to_sectors(sector_size);
-    let length = length.to_sectors(sector_size);
+    let start = start.into_sectors(sector_size);
+    let length = length.into_sectors(sector_size);
 
     let geometry = Geometry::new(&dev, start as i64, length as i64)
         .map_err(|why| PartedError::CreateGeometry { why })?;
 
     // Create a new partition with the following file system type.
-    let fs = fs.unwrap_or("ext2".into());
+    let fs = fs.unwrap_or_else(|| "ext2".into());
     let fs_type = match FileSystemType::get(&fs) {
         Some(fs) => fs,
         None => {
@@ -151,12 +162,13 @@ fn create_partition(
 
         // Create a new partition from the disk, geometry, and the type.
         let mut partition = Partition::new(
-            &mut disk,
+            &disk,
             part_type,
             Some(&fs_type),
             geometry.start(),
             geometry.start() + geometry.length(),
-        ).map_err(|why| PartedError::CreatePartition { why })?;
+        )
+        .map_err(|why| PartedError::CreatePartition { why })?;
 
         let constraint = geometry.exact().unwrap();
 
@@ -182,7 +194,8 @@ fn create_partition(
         let disk = Disk::new(&mut dev).map_err(|why| PartedError::CreateDisk { why })?;
 
         {
-            let new_part = disk.get_partition_by_sector(start as i64)
+            let new_part = disk
+                .get_partition_by_sector(start as i64)
                 .ok_or(PartedError::FindPartition)?;
 
             let device_path = format!("{}{}", device_path.display(), new_part.num());

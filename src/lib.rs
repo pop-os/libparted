@@ -7,11 +7,12 @@ pub use self::alignment::Alignment;
 pub use self::constraint::Constraint;
 pub use self::device::{CHSGeometry, Device, DeviceExternalAccess, DeviceIter, DeviceType};
 pub use self::disk::{Disk, DiskFlag, DiskPartIter, DiskType, DiskTypeFeature};
-pub use self::file_system::{FileSystem, FileSystemAlias, FileSystemAliasIter, FileSystemType,
-                            FileSystemTypeIter};
+pub use self::file_system::{
+    FileSystem, FileSystemAlias, FileSystemAliasIter, FileSystemType, FileSystemTypeIter,
+};
 pub use self::geometry::Geometry;
-pub use self::partition::{Partition, PartitionFlag, PartitionType};
 pub use self::misc::{round_down_to, round_to_nearest, round_up_to};
+pub use self::partition::{Partition, PartitionFlag, PartitionType};
 pub use self::timer::Timer;
 
 pub(crate) use self::constraint::ConstraintSource;
@@ -86,7 +87,7 @@ pub fn prefer_snap(
         } else if up_dist < down_dist || (down_dist == up_dist && what == SECT_END) {
             moves = MOVE_UP;
         } else {
-            assert!(false);
+            unreachable!();
         }
     } else if *allow & MOVE_UP != 0 {
         moves = MOVE_UP;

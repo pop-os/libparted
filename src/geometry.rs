@@ -1,15 +1,17 @@
+use super::{
+    cvt, get_optional, Constraint, ConstraintSource, Device, FileSystem, FileSystemType, Timer,
+};
+use libparted_sys::{
+    ped_constraint_exact, ped_file_system_open, ped_file_system_probe,
+    ped_file_system_probe_specific, ped_geometry_check, ped_geometry_destroy,
+    ped_geometry_duplicate, ped_geometry_init, ped_geometry_intersect, ped_geometry_map,
+    ped_geometry_new, ped_geometry_read, ped_geometry_set, ped_geometry_set_end,
+    ped_geometry_set_start, ped_geometry_sync, ped_geometry_sync_fast, ped_geometry_test_equal,
+    ped_geometry_test_inside, ped_geometry_write, PedGeometry,
+};
+use std::io;
 use std::marker::PhantomData;
 use std::os::raw::c_void;
-use std::io;
-use super::{cvt, get_optional, Constraint, ConstraintSource, Device, FileSystem, FileSystemType,
-            Timer};
-use libparted_sys::{ped_constraint_exact, ped_file_system_open, ped_file_system_probe,
-                    ped_file_system_probe_specific, ped_geometry_check, ped_geometry_destroy,
-                    ped_geometry_duplicate, ped_geometry_init, ped_geometry_intersect,
-                    ped_geometry_map, ped_geometry_new, ped_geometry_read, ped_geometry_set,
-                    ped_geometry_set_end, ped_geometry_set_start, ped_geometry_sync,
-                    ped_geometry_sync_fast, ped_geometry_test_equal, ped_geometry_test_inside,
-                    ped_geometry_write, PedGeometry};
 
 pub struct Geometry<'a> {
     pub(crate) geometry: *mut PedGeometry,
@@ -75,11 +77,11 @@ impl<'a> Geometry<'a> {
         }
     }
 
-    pub fn dev<'b>(&'b self) -> Device<'b> {
+    pub fn dev(&self) -> Device {
         unsafe { Device::from_ped_device((*self.geometry).dev) }
     }
 
-    pub fn dev_mut<'b>(&'b mut self) -> Device<'b> {
+    pub fn dev_mut(&mut self) -> Device {
         unsafe { Device::from_ped_device((*self.geometry).dev) }
     }
 
@@ -253,7 +255,7 @@ impl<'a> Geometry<'a> {
     /// - `PED_EXCEPTION_ERROR` if the file system is bigger than its volume.
     /// - `PED_EXCEPTION_NO_FEATURE` if opening of a file system stored on `geom` is
     ///     not implemented.
-    pub fn open_fs<'b>(&'b self) -> Option<FileSystem<'b>> {
+    pub fn open_fs(&self) -> Option<FileSystem> {
         get_optional(unsafe { ped_file_system_open(self.geometry) }).map(FileSystem::from_raw)
     }
 
@@ -262,7 +264,7 @@ impl<'a> Geometry<'a> {
     /// This function tries to be clever at dealing with ambiguous situations, such as
     /// when one file system was not completely erased before a new file system was created on
     /// on top of it.
-    pub fn probe_fs<'b>(&'b self) -> io::Result<FileSystemType<'b>> {
+    pub fn probe_fs(&self) -> io::Result<FileSystemType> {
         cvt(unsafe { ped_file_system_probe(self.geometry) }).map(FileSystemType::from_raw)
     }
 
