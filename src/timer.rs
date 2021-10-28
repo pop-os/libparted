@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
 use libparted_sys::PedTimer;
+use std::marker::PhantomData;
 
 pub struct Timer<'a> {
     pub(crate) timer: *mut PedTimer,

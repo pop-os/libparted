@@ -1,14 +1,15 @@
+use super::{cvt, get_optional, Geometry, Timer};
+use libparted_sys::{
+    ped_file_system_alias_get_next, ped_file_system_alias_register,
+    ped_file_system_alias_unregister, ped_file_system_resize, ped_file_system_type_get,
+    ped_file_system_type_get_next, ped_file_system_type_register, ped_file_system_type_unregister,
+    PedFileSystem, PedFileSystemAlias, PedFileSystemType,
+};
 use std::ffi::{CStr, CString};
 use std::io;
 use std::marker::PhantomData;
 use std::ptr;
 use std::str;
-use super::{cvt, get_optional, Geometry, Timer};
-use libparted_sys::{ped_file_system_alias_get_next, ped_file_system_alias_register,
-                    ped_file_system_alias_unregister, ped_file_system_resize,
-                    ped_file_system_type_get, ped_file_system_type_get_next,
-                    ped_file_system_type_register, ped_file_system_type_unregister, PedFileSystem,
-                    PedFileSystemAlias, PedFileSystemType};
 
 pub struct FileSystem<'a> {
     pub(crate) fs: *mut PedFileSystem,
@@ -27,11 +28,11 @@ impl<'a> FileSystem<'a> {
         unsafe { (*self.fs).checked != 0 }
     }
 
-    pub fn geom<'b>(&'b mut self) -> Geometry<'b> {
+    pub fn geom(&mut self) -> Geometry {
         Geometry::from_raw(unsafe { (*self.fs).geom })
     }
 
-    pub fn type_<'b>(&'b mut self) -> FileSystemType<'b> {
+    pub fn type_(&mut self) -> FileSystemType {
         FileSystemType::from_raw(unsafe { (*self.fs).type_ })
     }
 

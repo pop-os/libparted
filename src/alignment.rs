@@ -1,11 +1,12 @@
-use libparted_sys::{ped_alignment_align_down, ped_alignment_align_nearest, ped_alignment_align_up,
-                    ped_alignment_destroy, ped_alignment_duplicate, ped_alignment_init,
-                    ped_alignment_intersect, ped_alignment_is_aligned, ped_alignment_new,
-                    PedAlignment};
+use libparted_sys::{
+    ped_alignment_align_down, ped_alignment_align_nearest, ped_alignment_align_up,
+    ped_alignment_destroy, ped_alignment_duplicate, ped_alignment_init, ped_alignment_intersect,
+    ped_alignment_is_aligned, ped_alignment_new, PedAlignment,
+};
 
+use super::{cvt, get_optional, Geometry};
 use std::io;
 use std::marker::PhantomData;
-use super::{cvt, get_optional, Geometry};
 
 pub struct Alignment<'a> {
     pub(crate) alignment: *mut PedAlignment,

@@ -1,28 +1,28 @@
+use super::{
+    cvt, get_optional, prefer_snap, snap, Alignment, Constraint, ConstraintSource, Device,
+    Geometry, Partition, MOVE_DOWN, MOVE_STILL, MOVE_UP, SECT_END, SECT_START,
+};
+use libparted_sys::{
+    ped_constraint_any, ped_disk_add_partition, ped_disk_check as check, ped_disk_clobber,
+    ped_disk_commit as commit, ped_disk_commit_to_dev as commit_to_dev,
+    ped_disk_commit_to_os as commit_to_os, ped_disk_delete_all as delete_all,
+    ped_disk_delete_partition, ped_disk_destroy, ped_disk_duplicate, ped_disk_extended_partition,
+    ped_disk_get_flag, ped_disk_get_last_partition_num, ped_disk_get_max_partition_geometry,
+    ped_disk_get_max_primary_partition_count, ped_disk_get_max_supported_partition_count,
+    ped_disk_get_partition, ped_disk_get_partition_alignment, ped_disk_get_partition_by_sector,
+    ped_disk_get_primary_partition_count, ped_disk_is_flag_available,
+    ped_disk_max_partition_length, ped_disk_max_partition_start_sector,
+    ped_disk_maximize_partition, ped_disk_minimize_extended_partition, ped_disk_new,
+    ped_disk_new_fresh, ped_disk_next_partition, ped_disk_print, ped_disk_set_flag,
+    ped_disk_set_partition_geom, ped_disk_type_check_feature, ped_disk_type_get,
+    ped_disk_type_get_next, ped_disk_type_register, ped_disk_type_unregister, PedDisk, PedDiskType,
+    PedPartition,
+};
 use std::ffi::{CStr, CString};
 use std::io::Result;
 use std::marker::PhantomData;
 use std::ptr;
 use std::str;
-use super::{cvt, get_optional, prefer_snap, snap, Alignment, Constraint, ConstraintSource, Device,
-            Geometry, Partition, MOVE_DOWN, MOVE_STILL, MOVE_UP, SECT_END, SECT_START};
-use libparted_sys::{ped_constraint_any, ped_disk_add_partition, ped_disk_check as check,
-                    ped_disk_clobber, ped_disk_commit as commit,
-                    ped_disk_commit_to_dev as commit_to_dev,
-                    ped_disk_commit_to_os as commit_to_os, ped_disk_delete_all as delete_all,
-                    ped_disk_delete_partition, ped_disk_destroy, ped_disk_duplicate,
-                    ped_disk_extended_partition, ped_disk_get_flag,
-                    ped_disk_get_last_partition_num, ped_disk_get_max_partition_geometry,
-                    ped_disk_get_max_primary_partition_count,
-                    ped_disk_get_max_supported_partition_count, ped_disk_get_partition,
-                    ped_disk_get_partition_alignment, ped_disk_get_partition_by_sector,
-                    ped_disk_get_primary_partition_count, ped_disk_is_flag_available,
-                    ped_disk_max_partition_length, ped_disk_max_partition_start_sector,
-                    ped_disk_maximize_partition, ped_disk_minimize_extended_partition,
-                    ped_disk_new, ped_disk_new_fresh, ped_disk_next_partition, ped_disk_print,
-                    ped_disk_set_flag, ped_disk_set_partition_geom,
-                    ped_disk_type_check_feature, ped_disk_type_get, ped_disk_type_get_next,
-                    ped_disk_type_register, ped_disk_type_unregister, PedDisk, PedDiskType,
-                    PedPartition};
 
 pub use libparted_sys::_PedDiskFlag as DiskFlag;
 pub use libparted_sys::_PedDiskTypeFeature as DiskTypeFeature;
@@ -123,6 +123,7 @@ impl<'a> Disk<'a> {
     }
 
     /// Obtains the inner device from the disk.
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn get_device<'b>(&self) -> Device<'b> {
         let mut device = Device::from_ped_device((*self.disk).dev);
         device.is_droppable = false;
@@ -130,7 +131,8 @@ impl<'a> Disk<'a> {
     }
 
     /// Obtains the inner device from the disk, with mutable access.
-    pub unsafe fn get_device_mut<'b>(&'b mut self) -> Device<'b> {
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn get_device_mut(&mut self) -> Device {
         let mut device = Device::from_ped_device((*self.disk).dev);
         device.is_droppable = false;
         device
@@ -152,7 +154,7 @@ impl<'a> Disk<'a> {
         }
     }
 
-    pub fn get_disk_type_name<'b>(&'b self) -> Option<&str> {
+    pub fn get_disk_type_name(&self) -> Option<&str> {
         unsafe {
             let type_ = (*self.disk).type_;
             let name = (*type_).name;
@@ -190,7 +192,7 @@ impl<'a> Disk<'a> {
         }
     }
 
-    pub fn parts<'b>(&'b self) -> DiskPartIter<'b> {
+    pub fn parts(&self) -> DiskPartIter {
         DiskPartIter(self, ptr::null_mut())
     }
 
@@ -242,7 +244,8 @@ impl<'a> Disk<'a> {
     ) -> Result<Geometry<'a>> {
         cvt(unsafe {
             ped_disk_get_max_partition_geometry(self.disk, part.part, constraint.constraint)
-        }).map(Geometry::from_raw)
+        })
+        .map(Geometry::from_raw)
     }
 
     disk_fn_mut!(
@@ -292,7 +295,7 @@ impl<'a> Disk<'a> {
     }
 
     // Obtains the extended partition from the disk, if it exists.
-    pub fn extended_partition<'b>(&'b self) -> Option<Partition<'b>> {
+    pub fn extended_partition(&self) -> Option<Partition> {
         get_optional(unsafe { ped_disk_extended_partition(self.disk) }).map(|part| {
             let mut partition = Partition::from(part);
             partition.is_droppable = false;
@@ -327,6 +330,7 @@ impl<'a> Disk<'a> {
     }
 
     /// Similar to `get_partition_by_sector`, but returns a raw pointer instead.
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn get_partition_by_sector_raw(&self, sector: i64) -> *mut PedPartition {
         ped_disk_get_partition_by_sector(self.disk, sector)
     }
@@ -341,6 +345,7 @@ impl<'a> Disk<'a> {
     }
 
     /// Similar to `get_partition`, but returns a raw pointer instead.
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn get_partition_raw(&self, num: u32) -> *mut PedPartition {
         ped_disk_get_partition(self.disk, num as i32)
     }
@@ -380,6 +385,7 @@ impl<'a> Disk<'a> {
     /// Removes the `part` **Partition** from the disk.
     ///
     /// If `part` is an extended partition, it must not contain any logical partitions.
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn remove_partition(&mut self, part: *mut PedPartition) -> Result<()> {
         cvt(ped_disk_delete_partition(self.disk, part)).map(|_| ())
     }
@@ -434,7 +440,8 @@ impl<'a> Disk<'a> {
     ) -> Result<()> {
         cvt(unsafe {
             ped_disk_set_partition_geom(self.disk, part.part, constraint.constraint, start, end)
-        }).map(|_| ())
+        })
+        .map(|_| ())
     }
 
     pub fn snap_to_boundaries(

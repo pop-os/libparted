@@ -1,17 +1,18 @@
+use super::{cvt, Disk, FileSystemType, Geometry};
 use std::ffi::{CStr, CString, OsStr};
 use std::io;
-use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::ptr;
 use std::str;
-use super::{cvt, Disk, FileSystemType, Geometry};
 
-use libparted_sys::{ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name,
-                    ped_partition_get_path, ped_partition_is_active, ped_partition_is_busy,
-                    ped_partition_is_flag_available, ped_partition_new, ped_partition_set_flag,
-                    ped_partition_set_name, ped_partition_set_system, ped_partition_type_get_name,
-                    PedFileSystemType, PedGeometry, PedPartition};
+use libparted_sys::{
+    ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name, ped_partition_get_path,
+    ped_partition_is_active, ped_partition_is_busy, ped_partition_is_flag_available,
+    ped_partition_new, ped_partition_set_flag, ped_partition_set_name, ped_partition_set_system,
+    ped_partition_type_get_name, PedFileSystemType, PedGeometry, PedPartition,
+};
 
 pub use libparted_sys::PedPartitionFlag as PartitionFlag;
 pub use libparted_sys::PedPartitionType as PartitionType;
@@ -26,7 +27,7 @@ pub struct Partition<'a> {
 impl<'a> From<*mut PedPartition> for Partition<'a> {
     fn from(part: *mut PedPartition) -> Self {
         Partition {
-            part: part,
+            part,
             phantom: PhantomData,
             is_droppable: true,
         }
@@ -108,7 +109,7 @@ impl<'a> Partition<'a> {
             let cstr_ptr = unsafe { ped_partition_get_path(self.part) };
             let cstr = unsafe { CStr::from_ptr(cstr_ptr) };
             let os_str = OsStr::from_bytes(cstr.to_bytes());
-            Some(&Path::new(os_str))
+            Some(Path::new(os_str))
         } else {
             None
         }

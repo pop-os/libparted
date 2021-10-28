@@ -20,7 +20,7 @@ fn create_and_append<'a>(
         }
     };
 
-    if let Err(why) = disk.add_partition(&mut partition, &constraint) {
+    if let Err(why) = disk.add_partition(&mut partition, constraint) {
         eprintln!("unable to add partition to disk: {}", why);
         exit(1);
     }
@@ -29,7 +29,7 @@ fn create_and_append<'a>(
 }
 
 fn main() {
-    let device = if let Some(device) = env::args().skip(1).next() {
+    let device = if let Some(device) = env::args().nth(1) {
         device
     } else {
         exit(1);

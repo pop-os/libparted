@@ -7,10 +7,10 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 license = "MIT"
 
 [dependencies]
-libc = "0.2.68"
-libparted-sys = "0.3.0"
+libc = "0.2.103"
+libparted-sys = "0.3.1"
 
 [dev-dependencies]
-libc = "0.2.68"
-failure = "0.1.7"
-failure_derive = "0.1.7"
+libc = "0.2.103"
+failure = "0.1.8"
+failure_derive = "0.1.8"

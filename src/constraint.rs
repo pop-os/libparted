@@ -1,12 +1,13 @@
-use std::marker::PhantomData;
-use std::io;
 use super::{cvt, get_optional, Alignment, Geometry};
+use std::io;
+use std::marker::PhantomData;
 
-use libparted_sys::{ped_constraint_destroy, ped_constraint_done, ped_constraint_duplicate,
-                    ped_constraint_init, ped_constraint_intersect, ped_constraint_is_solution,
-                    ped_constraint_new, ped_constraint_new_from_max, ped_constraint_new_from_min,
-                    ped_constraint_new_from_min_max, ped_constraint_solve_max,
-                    ped_constraint_solve_nearest, PedConstraint};
+use libparted_sys::{
+    ped_constraint_destroy, ped_constraint_done, ped_constraint_duplicate, ped_constraint_init,
+    ped_constraint_intersect, ped_constraint_is_solution, ped_constraint_new,
+    ped_constraint_new_from_max, ped_constraint_new_from_min, ped_constraint_new_from_min_max,
+    ped_constraint_solve_max, ped_constraint_solve_nearest, PedConstraint,
+};
 
 pub(crate) enum ConstraintSource {
     Init,
@@ -48,7 +49,8 @@ impl<'a> Constraint<'a> {
                 min_size,
                 max_size,
             )
-        }).map(|constraint| Constraint::new_(constraint, ConstraintSource::New))
+        })
+        .map(|constraint| Constraint::new_(constraint, ConstraintSource::New))
     }
 
     /// Return a constraint that requires a region to be entirely contained inside `max`.
@@ -96,19 +98,19 @@ impl<'a> Constraint<'a> {
         Ok(())
     }
 
-    pub fn start_align<'b>(&'b self) -> Alignment<'b> {
+    pub fn start_align(&self) -> Alignment {
         Alignment::from_raw(unsafe { (*self.constraint).start_align })
     }
 
-    pub fn end_align<'b>(&'b self) -> Alignment<'b> {
+    pub fn end_align(&self) -> Alignment {
         Alignment::from_raw(unsafe { (*self.constraint).end_align })
     }
 
-    pub fn start_range<'b>(&'b self) -> Geometry<'b> {
+    pub fn start_range(&self) -> Geometry {
         Geometry::from_raw(unsafe { (*self.constraint).start_range })
     }
 
-    pub fn end_range<'b>(&'b self) -> Geometry<'b> {
+    pub fn end_range(&self) -> Geometry {
         Geometry::from_raw(unsafe { (*self.constraint).end_range })
     }
 
