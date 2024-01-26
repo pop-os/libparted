@@ -11,7 +11,7 @@ use libparted_sys::{
     ped_partition_destroy, ped_partition_get_flag, ped_partition_get_name, ped_partition_get_path,
     ped_partition_is_active, ped_partition_is_busy, ped_partition_is_flag_available,
     ped_partition_new, ped_partition_set_flag, ped_partition_set_name, ped_partition_set_system,
-    ped_partition_type_get_name, PedFileSystemType, PedGeometry, PedPartition,
+    ped_partition_set_type_uuid, ped_partition_type_get_name, PedFileSystemType, PedGeometry, PedPartition,
 };
 
 pub use libparted_sys::PedPartitionFlag as PartitionFlag;
@@ -198,6 +198,19 @@ impl<'a> Partition<'a> {
         })?;
         let name_ptr = name_cstring.as_ptr();
         cvt(unsafe { ped_partition_set_name(self.part, name_ptr) }).map(|_| ())
+    }
+
+    /// Sets the uuid of a partition.
+    ///
+    /// # Note:
+    ///
+    /// refer to this link for values https://uapi-group.org/specifications/specs/discoverable_partitions_specification/
+    ///
+    pub fn set_partition_type_uuid(&mut self, uuid: &[u8; 16]) -> io::Result<()> {
+        if uuid.len() != 16 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "UUID must be 16 bytes"));
+        }
+        cvt(unsafe { partition_set_type_uuid(self.part, uuid.as_ptr()) }).map(|_| ())
     }
 
     /// Sets the system type on the partition to `fs_type`.
