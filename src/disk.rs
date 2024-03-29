@@ -19,13 +19,83 @@ use libparted_sys::{
     PedPartition,
 };
 use std::ffi::{CStr, CString};
-use std::io::Result;
+use std::io::{ErrorKind, Result};
 use std::marker::PhantomData;
 use std::ptr;
 use std::str;
+use std::string::ToString;
 
 pub use libparted_sys::_PedDiskFlag as DiskFlag;
 pub use libparted_sys::_PedDiskTypeFeature as DiskTypeFeature;
+
+/// Which type of partitioning scheme the disk shall receive.
+/// Derived from https://unix.stackexchange.com/a/289401
+#[derive(Clone)]
+pub enum PartitionTableType {
+    /// The *Globally Unique Identifier Partition Table* is the most modern style of partitioning drives and is most likely the option you are looking for.
+    GPT,
+    /// More traditional *Master Boot Record* partitioning scheme used by MSDOS and older systems.
+    MSDOS,
+    /// Used by IBM's AIX (the precursor to the Logical Volume Manager).
+    AIX,
+    /// Used by Amiga's RDB partitioning system.
+    Amiga,
+    /// Used by BSD disk labels.
+    BSD,
+    /// Used by SGI disk volume headers.
+    DVH,
+    /// Used by Apple's partition tables pre GPT.
+    Mac,
+    /// Used by PC-98.
+    PC98,
+    /// Used by Sun.
+    Sun,
+    /// Used for raw-disk access akin to loopback devices.
+    Loop,
+    /// Used if the desired partitioning scheme isn't mentioned in the list above
+    Other(String),
+}
+
+impl Default for PartitionTableType {
+    fn default() -> Self {
+        Self::GPT
+    }
+}
+
+impl PartitionTableType {
+    pub fn to_cstring(&self) -> Option<CString> {
+        match self {
+            PartitionTableType::GPT => CString::new(b"gpt"),
+            PartitionTableType::MSDOS => CString::new(b"msdos"),
+            PartitionTableType::AIX => CString::new(b"aix"),
+            PartitionTableType::Amiga => CString::new(b"amiga"),
+            PartitionTableType::BSD => CString::new(b"bsd"),
+            PartitionTableType::DVH => CString::new(b"dvh"),
+            PartitionTableType::Mac => CString::new(b"mac"),
+            PartitionTableType::PC98 => CString::new(b"pc98"),
+            PartitionTableType::Sun => CString::new(b"sun"),
+            PartitionTableType::Loop => CString::new(b"loop"),
+            PartitionTableType::Other(name) => CString::new(name.as_bytes()),
+        }
+        .ok()
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            PartitionTableType::GPT => "gpt".to_owned(),
+            PartitionTableType::MSDOS => "msdos".to_owned(),
+            PartitionTableType::AIX => "aix".to_owned(),
+            PartitionTableType::Amiga => "amiga".to_owned(),
+            PartitionTableType::BSD => "bsd".to_owned(),
+            PartitionTableType::DVH => "dvh".to_owned(),
+            PartitionTableType::Mac => "mac".to_owned(),
+            PartitionTableType::PC98 => "pc98".to_owned(),
+            PartitionTableType::Sun => "sun".to_owned(),
+            PartitionTableType::Loop => "loop".to_owned(),
+            PartitionTableType::Other(name) => name.clone(),
+        }
+    }
+}
 
 macro_rules! disk_fn_mut {
     ($(#[$attr:meta])* fn $method:tt) => {
@@ -68,6 +138,7 @@ impl<'a> DiskType<'a> {
     }
 
     /// Return the disk type with the given name.
+    #[deprecated(since = "0.1.5", note = "Please use `from_table_type` instead")]
     pub fn get(name: &str) -> Option<DiskType<'a>> {
         CString::new(name.as_bytes())
             .ok()
@@ -82,6 +153,22 @@ impl<'a> DiskType<'a> {
                     })
                 }
             })
+    }
+
+    /// Creates a new partition table of type `table_type`.
+    pub fn from_table_type(table_type: PartitionTableType) -> Option<DiskType<'a>> {
+        let str = table_type.to_cstring()?;
+
+        let r#type = unsafe { ped_disk_type_get(str.as_ptr()) };
+
+        if r#type.is_null() {
+            None
+        } else {
+            Some(DiskType {
+                type_: r#type,
+                phantom: PhantomData,
+            })
+        }
     }
 
     pub fn register(&self) {
@@ -120,6 +207,28 @@ impl<'a> Disk<'a> {
             phantom: PhantomData,
             is_droppable: true,
         })
+    }
+
+    /// Creates a new partition table on `device`.
+    ///
+    /// The new partition table is only created in-memory, and nothing is written to disk until
+    /// `disk.commit_to_dev()` is called.
+    ///
+    /// This method is a shorthand for
+    /// ```rust
+    /// Disk::new_fresh(&mut dev, DiskType::from_type(table_type))
+    /// ```
+    pub fn new_with_partition_table(
+        device: &'a mut Device,
+        table_type: PartitionTableType,
+    ) -> Result<Disk<'a>> {
+        Disk::new_fresh(
+            device,
+            DiskType::from_table_type(table_type.clone()).ok_or(std::io::Error::new(
+                ErrorKind::NotFound,
+                table_type.to_string(),
+            ))?,
+        )
     }
 
     /// Obtains the inner device from the disk.
