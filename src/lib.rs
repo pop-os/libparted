@@ -6,7 +6,7 @@ use std::io;
 pub use self::alignment::Alignment;
 pub use self::constraint::Constraint;
 pub use self::device::{CHSGeometry, Device, DeviceExternalAccess, DeviceIter, DeviceType};
-pub use self::disk::{Disk, DiskFlag, DiskPartIter, DiskType, DiskTypeFeature};
+pub use self::disk::{Disk, DiskFlag, DiskPartIter, DiskType, DiskTypeFeature, PartitionTableType};
 pub use self::file_system::{
     FileSystem, FileSystemAlias, FileSystemAliasIter, FileSystemType, FileSystemTypeIter,
 };
